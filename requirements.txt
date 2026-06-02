@@ -1,0 +1,98 @@
+
+# # Create virtual environment
+# python -m venv .venv
+
+# # Activate (Windows)
+# .venv\Scripts\activate
+
+# # Install dependencies
+# python -m pip install -r requirements.txt
+
+
+# netstat -ano | findstr :8000
+# Example output: TCP    127.0.0.1:8001     0.0.0.0:0     LISTENING     12345
+# 12345 = PID
+
+# METHOD 1: Kill Task
+# taskkill /PID 12345 /F
+# Uvicorn is now stopped.
+
+# Verify
+# netstat -ano | findstr :8000
+
+# METHOD 2: Kill by Process Name (Easy)
+# taskkill /IM uvicorn.exe /F
+
+# METHOD 3: Kill Python Process (Last Option) This kills all Python processes:
+# taskkill /IM python.exe /F
+
+
+
+
+# C:\nssm\win64
+# $nssm = "C:\nssm-2.24\win64\nssm.exe"
+# $serviceName = "ScoreAnalyticsAI"
+# $pythonPath = "C:\inetpub\wwwroot\PeaceEnablers_AI_Service\.venv\Scripts\python.exe"
+# $workDir = "C:\inetpub\wwwroot\PeaceEnablers_AI_Service"
+
+# & $nssm install $serviceName $pythonPath "run.py"
+# & $nssm set $serviceName AppDirectory $workDir
+# & $nssm set $serviceName AppStdout "C:\inetpub\wwwroot\PeaceEnablers_AI_Service\logs\service.log"
+# & $nssm set $serviceName AppStderr "C:\inetpub\wwwroot\PeaceEnablers_AI_Service\logs\error.log"
+# & $nssm set $serviceName Start SERVICE_AUTO_START
+
+#& $nssm start $serviceName
+
+# New-Item -ItemType Directory -Force "C:\inetpub\wwwroot\PeaceEnablers_AI_Service\logs"
+# If You Ever Need to Restart After Code Changes
+# $nssm = "C:\nssm\win64\nssm.exe"
+
+# # Restrart nssm
+# cd C:\nssm\win64
+# .\nssm.exe stop ScoreAnalyticsAI
+# .\nssm.exe start ScoreAnalyticsAI
+
+# .\nssm.exe restart ScoreAnalyticsAI
+
+
+# Core API Framework
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+pydantic==2.12.4
+pydantic-core==2.41.5
+python-multipart==0.0.6
+python-dotenv==1.0.0
+
+
+
+langchain==1.1.0
+langchain-core==1.1.0
+langchain-openai==1.1.0
+langsmith==0.4.47
+
+
+
+# Text Processing
+nltk==3.8.1
+sqlparse==0.4.4
+
+# Vector Store / Array Support
+numpy==1.26.4
+
+# HTTP Clients
+requests==2.31.0
+httpx==0.28.0
+
+# Utilities
+pandas==2.1.4
+
+# SQL Server
+pyodbc==5.0.1
+sqlalchemy==2.0.36
+
+
+# vector db and docx and pdf read
+ chromadb==0.4.24 
+ sentence-transformers==2.7.0 
+ pymupdf==1.24.0 
+ python-docx==1.1.2 
