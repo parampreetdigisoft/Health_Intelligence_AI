@@ -1,21 +1,19 @@
 """
-    VUI JSON Response Parser
+    PEM JSON Response Parser
     ------------------------
     Handles:
       - Cleaning raw LLM output into valid JSON strings
       - Fixing common JSON escaping issues
       - Validating required fields and value ranges
       - Mapping parsed dicts to the canonical DB field layout for
-        question-level, pillar-level, and city-level responses
+        question-level, pillar-level, and country-level responses
 """
 
-import datetime
 import re
 import json
 import logging
 from typing import Any, Dict, Optional
-from datetime import datetime
-from typing import Dict, Any
+
 logger = logging.getLogger(__name__)
 
 
@@ -56,7 +54,6 @@ def clean_json_response(response: str) -> str:
         .replace("\u2014", "-")
         .replace("\u2026", "...")
     )
-
 
     # Strip control characters (keep \n, \r, \t for now)
     json_str = re.sub(r"[\x00-\x08\x0b-\x0c\x0e-\x1f\x7f]", "", json_str)
@@ -148,206 +145,54 @@ def _log_context(json_str: str, pos: int, window: int = 100) -> None:
 #  Validation                                                             #
 # ====================================================================== #
 
-# def validate_question_response(data: Dict) -> Dict:
-#     """
-#     Validate a parsed question-level LLM response.
-#     Raises ValueError on fatal problems; auto-corrects minor ones.
-#     """
-
-#     _require_fields(
-#         data,
-#         [
-#             "ai_score",
-#             "ai_progress",
-#             "confidence_level",
-#             "evidence_summary",
-#             "four_layer_evidence",
-#             "temporal_scope",
-#             "distortion_screening",
-#             "relational_dependencies",
-#             "stress_simulation",
-#             "inequality_adjustment",
-#             "opacity_risk",
-#             "sources",  # switched to structured sources (better design)
-#         ],
-#     )
-
-#     _validate_ai_score(data)
-#     _validate_ai_progress(data)
-#     _validate_confidence(data)
-#     _validate_sources(data)
-
-#     return data
-
-
 def validate_question_response(data: Dict) -> Dict:
     """
     Validate a parsed question-level LLM response.
     Raises ValueError on fatal problems; auto-corrects minor ones.
     """
-
     _require_fields(
         data,
         [
-            "ai_score",
-            "ai_progress",
-            "confidence_level",
-            "evidence_summary",
-            "data_sources_count",
-            "source_type",
-            "source_name",
-            "source_url",
-            "source_data_year",
-            "source_trust_level",
-            "source_data_extract",
+            "ai_score", "confidence_level", "evidence_summary",
+            "four_layer_evidence", "temporal_scope", "distortion_screening",
+            "relational_dependencies", "stress_simulation",
+            "inequality_adjustment", "opacity_risk",
         ],
     )
-
-    # Optional fields
-    data.setdefault("red_flag", "")
-    data.setdefault("geographic_equity_note", "")
-
     _validate_ai_score(data)
-    _validate_ai_progress(data)
     _validate_confidence(data)
-    _validate_source(data)
-
     return data
 
-def _validate_ai_score(data: Dict) -> None:
-    score = data.get("ai_score")
 
-    if isinstance(score, (int, float)):
-        if not (0 <= float(score) <= 4):
-            raise ValueError(f"ai_score {score} is outside the valid range 0-4.")
-    elif score not in ("N/A", "Unknown"):
-        raise ValueError(
-            f"ai_score must be a number 0-4, 'N/A', or 'Unknown'. Got: {score!r}"
-        )
-
-
-def _validate_ai_progress(data: Dict) -> None:
-    progress = data.get("ai_progress")
-
-    if not isinstance(progress, (int, float)) or not (0 <= progress <= 100):
-        raise ValueError(f"ai_progress must be 0-100, got {progress}")
-    
-def _validate_sources(data: Dict) -> None:
-    sources = data.get("sources")
-
-    if not isinstance(sources, list) or len(sources) == 0:
-        logger.warning("Invalid sources array, creating placeholder")
-
-        data["sources"] = [{
-            "source_type": "Unknown",
-            "source_name": "Data not available",
-            "source_url": "Not available",
-            "data_year": datetime.now().year,
-            "trust_level": 1,
-            "data_extract": "Insufficient data available"
-        }]
-        return
-
-    for src in sources:
-        _validate_single_source(src)
-
-def _validate_single_source(src: Dict) -> None:
-    required = [
-        "source_type",
-        "source_name",
-        "source_url",
-        "data_year",
-        "trust_level",
-        "data_extract",
-    ]
-
-    for field in required:
-        if field not in src:
-            raise ValueError(f"Missing source field: {field}")
-
-    # Trust level check
-    if not (1 <= src["trust_level"] <= 7):
-        raise ValueError(
-            f"source_trust_level must be 1-7, got {src['trust_level']}"
-        )
-        
 def validate_pillar_response(data: Dict) -> Dict:
     """Validate a parsed pillar-level LLM response."""
-
     _require_fields(
         data,
-        [
-            "ai_score",
-            "ai_progress",
-            "confidence_level",
-            "evidence_summary",
-            "institutional_assessment",
-            "data_gap_analysis",
-            "sources",  # restored
-        ],
+        ["ai_score", "confidence_level", "evidence_summary",
+         "institutional_assessment", "data_gap_analysis"],
     )
-
     _validate_ai_score(data)
-    _validate_ai_progress(data)
     _validate_confidence(data)
-    _validate_sources(data)
-
     return data
 
 
-def validate_city_response(data: Dict) -> Dict:
-    """Validate a parsed city-level LLM response."""
-
+def validate_country_response(data: Dict) -> Dict:
+    """Validate a parsed country-level LLM response."""
     _require_fields(
         data,
         [
-            "ai_score",
-            "ai_progress",
-            "confidence_level",
-            "city_profile",
-            "peer_comparison",
-            "evidence_summary",
-            "source",
-            "cross_pillar_patterns",
-            "institutional_capacity",
-            "equity_assessment",
-            "sustainability_outlook",
+            "ai_score", "confidence_level", "executive_summary",
+            "cross_pillar_patterns", "institutional_capacity",
+            "equity_assessment", "conflict_risk_outlook",
+            "strategic_recommendation", "data_transparency_note",
+            "stress_simulation", "inequality_adjustment", "opacity_risk",
         ],
     )
-
     _validate_ai_score(data)
-    _validate_ai_progress(data)
     _validate_confidence(data)
-
     return data
 
-def _validate_source(data: Dict) -> None:
-    required = [
-        "source_type",
-        "source_name",
-        "source_url",
-        "source_data_year",
-        "source_trust_level",
-        "source_data_extract",
-    ]
 
-    for field in required:
-        if field not in data:
-            raise ValueError(f"Missing source field: {field}")
-
-    trust_level = data.get("source_trust_level")
-
-    if not isinstance(trust_level, (int, float)) or not (1 <= trust_level <= 7):
-        raise ValueError(
-            f"source_trust_level must be 1-7, got {trust_level}"
-        )
-
-    source_count = data.get("data_sources_count")
-
-    if not isinstance(source_count, int) or source_count < 0:
-        raise ValueError(
-            f"data_sources_count must be a non-negative integer, got {source_count}"
-        )
 # ====================================================================== #
 #  Response mappers → canonical DB dicts                                  #
 # ====================================================================== #
@@ -358,115 +203,139 @@ def map_question_response(
     year: int,
 ) -> Dict[str, Any]:
     """Map a validated question-level analysis dict to the DB field layout."""
-
+    four = analysis.get("four_layer_evidence", {})
+    stress = analysis.get("stress_simulation", {})
     return {
         "success": True,
-        "CityID": None,
+        "CountryID": None,
         "PillarID": pillar_id,
         "Year": year,
-
         # Scores
         "AIScore": analysis.get("ai_score"),
         "AIProgress": analysis.get("ai_progress"),
         "ConfidenceLevel": analysis.get("confidence_level"),
-        "Discrepancy": analysis.get("discrepancy"),
-
-        # Core narrative
+        # Four-layer evidence
+        "StructuralEvidence": four.get("structural"),
+        "OperationalEvidence": four.get("operational"),
+        "OutcomeEvidence": four.get("outcome"),
+        "PerceptionEvidence": four.get("perception"),
+        # Narrative fields
         "EvidenceSummary": analysis.get("evidence_summary"),
-        "RedFlag": analysis.get("red_flag", ""),
-        "GeographicEquityNote": analysis.get("geographic_equity_note", ""),
-
-        # Source metadata
-        "DataSourcesCount": analysis.get("data_sources_count"),
-        "SourceType": analysis.get("source_type"),
+        "TemporalScope": analysis.get("temporal_scope"),
+        "DistortionScreening": analysis.get("distortion_screening"),
+        "RelationalDependencies": analysis.get("relational_dependencies"),
+        # Stress simulation
+        "StressPoliticalShock": stress.get("political_shock"),
+        "StressEconomicShock": stress.get("economic_shock"),
+        "StressNarrativeShock": stress.get("narrative_shock"),
+        "StressOverallResilienceShock": stress.get("overall_stress_resilience"),
+        # Adjustments & flags
+        "InequalityAdjustment": analysis.get("inequality_adjustment"),
+        "OpacityRisk": analysis.get("opacity_risk"),
+        "NonCompensationNote": analysis.get("non_compensation_note"),
+        "RedFlag": analysis.get("red_flag"),
+        # Source fields (single primary source at question level)
         "SourceName": analysis.get("source_name"),
+        "SourceType": analysis.get("source_type"),
         "SourceURL": analysis.get("source_url"),
         "SourceDataYear": analysis.get("source_data_year"),
         "SourceHierarchyLevel": analysis.get("source_trust_level"),
         "SourceDataExtract": analysis.get("source_data_extract"),
+        # Optional extras
+        "SourcesConsulted": analysis.get("sources_consulted"),
+        "ConfidenceExplanation": analysis.get("confidence_explanation"),
     }
-
-
 
 
 def map_pillar_response(
     analysis: Dict,
     pillar_id: int,
-    pillar_name: str,
     year: int,
-    discrepancy: float = None
 ) -> Dict[str, Any]:
     """Map a validated pillar-level analysis dict to the DB field layout."""
-
+    stress = analysis.get("stress_simulation", {})
     return {
         "success": True,
-        "CityID": None,
+        "CountryID": None,
         "PillarID": pillar_id,
-        "PillarName": pillar_name,
         "Year": year,
-
         # Scores
         "AIScore": analysis.get("ai_score"),
         "AIProgress": analysis.get("ai_progress"),
-        "Discrepancy": discrepancy,
         "ConfidenceLevel": analysis.get("confidence_level"),
-
-        # Core narrative
+        # Narrative
         "EvidenceSummary": analysis.get("evidence_summary"),
-        "RedFlag": analysis.get("red_flag", ""),
-        "GeographicEquityNote": analysis.get("geographic_equity_note", ""),
-
-        # Institutional analysis
-        "InstitutionalAssessment": analysis.get("institutional_assessment", ""),
-        "DataGapAnalysis": analysis.get("data_gap_analysis", ""),
-        "AnalystDataGapAnalysis": analysis.get("analyst_data_gap_analysis", ""),
-
-        # Sources (array)
+        # Four-layer evidence
+        "StructuralEvidence": analysis.get("four_layer_evidence", {}).get("structural"),
+        "OperationalEvidence": analysis.get("four_layer_evidence", {}).get("operational"),
+        "OutcomeEvidence": analysis.get("four_layer_evidence", {}).get("outcome"),
+        "PerceptionEvidence": analysis.get("four_layer_evidence", {}).get("perception"),
+        # Temporal & distortion
+        "TemporalScope": analysis.get("temporal_scope"),
+        "DistortionScreening": analysis.get("distortion_screening"),
+        "RelationalIntegrity": analysis.get("relational_integrity"),
+        # Stress simulation
+        "StressPoliticalShock": stress.get("political_shock"),
+        "StressEconomicShock": stress.get("economic_shock"),
+        "StressNarrativeShock": stress.get("narrative_shock"),
+        "StressOverallResilience": stress.get("overall_stress_resilience"),
+        "StressScoreAdjustment": stress.get("stress_score_adjustment"),
+        # Adjustments & flags
+        "InequalityAdjustment": analysis.get("inequality_adjustment"),
+        "OpacityRisk": analysis.get("opacity_risk"),
+        "NonCompensationNote": analysis.get("non_compensation_note"),
+        "GeographicEquityNote": analysis.get("geographic_equity_note"),
+        "InstitutionalAssessment": analysis.get("institutional_assessment"),
+        "DataGapAnalysis": analysis.get("data_gap_analysis"),
+        "RedFlag": analysis.get("red_flag"),
+        # Sources array
         "Sources": analysis.get("sources", []),
-
-        # Metadata
-        "Timestamp": datetime.now().isoformat()
     }
 
 
-def map_city_response(
+def map_country_response(
     analysis: Dict,
-    city_name: str,
     year: int,
-    discrepancy: float = None
 ) -> Dict[str, Any]:
-    """Map a validated country/city-level analysis dict to the DB field layout."""
-
+    """Map a validated country-level analysis dict to the DB field layout."""
+    four = analysis.get("four_layer_evidence", {})
+    stress = analysis.get("stress_simulation", {})
     return {
         "success": True,
-        "CityID": None,
-        "CityName": city_name,
+        "CountryID": None,
         "Year": year,
-
         # Scores
         "AIScore": analysis.get("ai_score"),
         "AIProgress": analysis.get("ai_progress"),
-        "Discrepancy": discrepancy,
         "ConfidenceLevel": analysis.get("confidence_level"),
-
-        # Combined summary (city_profile + evidence_summary)
-        "EvidenceSummary": (
-            (analysis.get("city_profile") or "") +
-            ("\n\n" if analysis.get("city_profile") else "") +
-            (analysis.get("evidence_summary") or "")
-        ),
-        # Source (single field in your return)
-        "Source": analysis.get("source"),
-
-        # Strategic / analytical fields
-        "CrossPillarPatterns": analysis.get("cross_pillar_patterns", ""),
-        "InstitutionalCapacity": analysis.get("institutional_capacity", ""),
-        "EquityAssessment": analysis.get("equity_assessment", ""),
-        "SustainabilityOutlook": analysis.get("sustainability_outlook", ""),
-        "StrategicRecommendation": analysis.get("strategic_recommendation", ""),
-        "DataTransparencyNote": analysis.get("data_transparency_note", ""),
+        "ExecutiveSummary": analysis.get("executive_summary"),
+        # Four-layer evidence
+        "StructuralEvidence": four.get("structural"),
+        "OperationalEvidence": four.get("operational"),
+        "OutcomeEvidence": four.get("outcome"),
+        "PerceptionEvidence": four.get("perception"),
+        # Temporal & distortion
+        "TemporalScope": analysis.get("temporal_scope"),
+        "DistortionScreening": analysis.get("distortion_screening"),
+        # Stress simulation
+        "PoliticalShock": stress.get("political_shock"),
+        "EconomicShock": stress.get("economic_shock"),
+        "NarrativeShock": stress.get("narrative_shock"),
+        "OverallStressResilience": stress.get("overall_stress_resilience"),
+        "StressScoreAdjustment": stress.get("stress_score_adjustment"),
+        # Adjustments, patterns & flags
+        "InequalityAdjustment": analysis.get("inequality_adjustment"),
+        "OpacityRisk": analysis.get("opacity_risk"),
+        "NonCompensationNote": analysis.get("non_compensation_note"),
+        "CrossPillarPatterns": analysis.get("cross_pillar_patterns"),
+        "RelationalIntegrity": analysis.get("relational_integrity"),
+        "InstitutionalCapacity": analysis.get("institutional_capacity"),
+        "EquityAssessment": analysis.get("equity_assessment"),
+        "ConflictRiskOutlook": analysis.get("conflict_risk_outlook"),
+        "StrategicRecommendation": analysis.get("strategic_recommendation"),
+        "DataTransparencyNote": analysis.get("data_transparency_note"),
+        "PrimarySource": analysis.get("primary_source"),
     }
-
 def build_immediateSituation_record(ai: dict) -> Dict[str, Any]:
     immediate = ai.get("immediateSituation", {}) or {}
 
@@ -507,23 +376,3 @@ def _validate_confidence(data: Dict) -> None:
             data.get("confidence_level"),
         )
         data["confidence_level"] = "Medium"
-
-def _validate_confidence(data: Dict) -> None:
-    valid = {"High", "Medium", "Low"}
-    if data.get("confidence_level") not in valid:
-        logger.warning(
-            "Invalid confidence_level '%s'. Defaulting to 'Medium'.",
-            data.get("confidence_level"),
-        )
-        data["confidence_level"] = "Medium"
-
-@staticmethod
-def _calculate_discrepancy(        
-        ai_progress: float, 
-        evaluator_score: Optional[float]
-    ) -> float:
-        """Calculate discrepancy between AI and evaluator scores"""
-        if evaluator_score is not None:
-
-            return abs(ai_progress - evaluator_score)
-        return ai_progress

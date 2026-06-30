@@ -9,6 +9,7 @@ class AnalysisResponse(BaseModel):
     message: Optional[str] = None
     data: Optional[dict] = None
 
+
 class ChatResponse(BaseModel):
     """Generic analysis response"""
     success: bool

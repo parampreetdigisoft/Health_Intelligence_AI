@@ -44,42 +44,55 @@ class DatabaseRepository:
 
         return await self.engine.fetch_df_async(query)
 
+
+    # ------------------------------------------------------------------
+    # score and Kpi recalculation
+    # ------------------------------------------------------------------
+
+    async def AiRecalculateCountryScore(self, countryID: int) -> None:
+
+        await self.engine.execute_sp_async(
+            "EXEC sp_AiRecalculateCountryScore @CountryID = ?",
+            (countryID,),
+        )
+
+    async def AiInsertAnalyticalLayerResults(self, countryID: int) -> None:
+
+        await self.engine.execute_sp_async(
+            "EXEC sp_AiInsertAnalyticalLayerResults @CountryID = ?",
+            (countryID,),
+        )
     # ------------------------------------------------------------------
     # Question evaluations
     # ------------------------------------------------------------------
 
-    async def bulk_upsert_question_evaluations(self, rows: List[Dict]) -> None:
+    async def bulk_upsert_question_evaluations(self, rows: List[Dict], countryID:int) -> None:
         if not rows:
             return
 
         col_order = [
-                "CityID",
-                "PillarID",
-                "QuestionID",
-                "Year",
-                "AIScore",
-                "AIProgress",
-                "EvaluatorProgress",
-                "Discrepancy",
-                "ConfidenceLevel",
-                "DataSourcesUsed",
-                "EvidenceSummary",
-                "RedFlags",
-                "GeographicEquityNote",
-                "SourceType",
-                "SourceName",
-                "SourceURL",
-                "SourceDataYear",
-                "SourceDataExtract",
-                "SourceTrustLevel"
-            ]
-
+            "CountryID", "PillarID", "QuestionID", "Year",
+            "AIScore", "AIProgress", "EvaluatorScore", "Discrepancy",
+            "ConfidenceLevel", "EvidenceSummary",
+            "StructuralEvidence", "OperationalEvidence",
+            "OutcomeEvidence", "PerceptionEvidence",
+            "TemporalScope", "DistortionScreening",
+            "RelationalDependencies",
+            "StressPoliticalShock", "StressEconomicShock",
+            "StressNarrativeShock", "StressOverallResilienceShock",
+            "InequalityAdjustment", "OpacityRisk", "RedFlag",
+            "SourceName", "SourceType", "SourceURL",
+            "SourceDataYear", "SourceHierarchyLevel",
+            "SourceDataExtract", "SourcesConsulted",
+        ]
 
         records =  self.engine.rows_to_tuples(rows, col_order)
         await self.engine.execute_sp_async(
-            "{CALL usp_AiBulkUpsertPillarQuestionEvaluations (?)}",
+            "{CALL usp_AiBulkUpsertPillarQuestionCountryEvaluations (?)}",
             (records,),
         )
+
+        await self.AiRecalculateCountryScore(countryID)
 
     # ------------------------------------------------------------------
     # Pillar evaluations
@@ -92,72 +105,38 @@ class DatabaseRepository:
     ) -> None:
         if not rows:
             return
-        
-        score_df = pd.DataFrame(rows)[[
-                "CityID",
-                "PillarID",
-                "Year",
-                "AIScore",
-                "AIProgress",
-                "EvaluatorProgress",
-                "Discrepancy",
-                "ConfidenceLevel",
-                "EvidenceSummary",
-                "RedFlags",
-                "GeographicEquityNote",
-                "InstitutionalAssessment",
-                "DataGapAnalysis",
-                "AnalystDataGapAnalysis"
-            ]]
 
-        score_records = list(score_df.itertuples(index=False, name=None))
-            
-        source_df = pd.DataFrame(sub_rows)[[
-                "CityID",
-                "DataYear",
-                "PillarID",
-                "SourceType",
-                "SourceName",
-                "SourceURL",
-                "DataExtract",
-                "TrustLevel"
-            ]]
-
-        source_records = list(source_df.itertuples(index=False, name=None))
-        
         await self.engine.execute_sp_async(
-            "{CALL usp_AiBulkUpsertCityPillarEvaluations (?, ?)}",
-            (score_records, source_records),
+            "{CALL usp_AiBulkUpsertCountryPillarEvaluations (?, ?)}",
+            (json.dumps(rows), json.dumps(sub_rows or [])),
         )
 
     # ------------------------------------------------------------------
-    # City evaluations
+    # Country evaluations
     # ------------------------------------------------------------------
 
-    async def bulk_upsert_city_evaluations(self, rows: List[Dict]) -> None:
+    async def bulk_upsert_country_evaluations(self, rows: List[Dict]) -> None:
         if not rows:
             return
 
         col_order = [
-                "CityID",
-                "Year",
-                "AIScore",
-                "AIProgress",
-                "EvaluatorProgress",
-                "Discrepancy",
-                "ConfidenceLevel",
-                "EvidenceSummary",
-                "CrossPillarPatterns",
-                "InstitutionalCapacity",
-                "EquityAssessment",
-                "SustainabilityOutlook",
-                "StrategicRecommendations",
-                "DataTransparencyNote"
-            ]
+            "CountryID", "Year", "AIScore", "AIProgress",
+            "EvaluatorScore", "Discrepancy", "ConfidenceLevel",
+            "EvidenceSummary", "StructuralEvidence",
+            "OperationalEvidence", "OutcomeEvidence", "PerceptionEvidence",
+            "TemporalScope", "DistortionScreening",
+            "PoliticalShock", "EconomicShock", "NarrativeShock",
+            "OverallStressResilience", "StressScoreAdjustment",
+            "InequalityAdjustment", "OpacityRisk", "NonCompensationNote",
+            "CrossPillarPatterns", "RelationalIntegrity",
+            "InstitutionalCapacity", "EquityAssessment",
+            "ConflictRiskOutlook", "StrategicRecommendation",
+            "DataTransparencyNote", "PrimarySource",
+        ]
 
         records = self.engine.rows_to_tuples(rows, col_order)
         await self.engine.execute_sp_async(
-            "EXEC usp_AiBulkUpsertCityEvaluations @CityEvaluations = ?",
+            "EXEC usp_AiBulkUpsertCountryEvaluations @CountryEvaluations = ?",
             (records,),
         )
 
@@ -168,8 +147,8 @@ class DatabaseRepository:
     async def save_toc_section(
         self,
         section: Dict,
-        city_doc_id: int,
-        city_id: int,
+        country_doc_id: int,
+        country_id: Optional[int],
         pillar_id: Optional[int],
     ) -> Optional[int]:
         if not section:
@@ -178,8 +157,8 @@ class DatabaseRepository:
         query = """
             MERGE DocumentTOC AS target
             USING (
-                SELECT ? AS CityDocumentID,
-                    ? AS CityID,
+                SELECT ? AS CountryDocumentID,
+                    ? AS CountryID,
                     ? AS PillarID,
                     ? AS SectionPath,
                     ? AS SectionTitle,
@@ -187,8 +166,8 @@ class DatabaseRepository:
                     ? AS PageStart,
                     ? AS PageEnd
             ) AS source
-            ON target.CityDocumentID = source.CityDocumentID
-            AND target.CityID = source.CityID
+            ON target.CountryDocumentID = source.CountryDocumentID
+            AND target.CountryID = source.CountryID
             AND (
                     (target.PillarID IS NULL AND source.PillarID IS NULL)
                     OR target.PillarID = source.PillarID
@@ -203,9 +182,9 @@ class DatabaseRepository:
                     SectionPath=source.SectionPath
 
             WHEN NOT MATCHED THEN
-                INSERT (CityDocumentID, CityID, PillarID, SectionPath,
+                INSERT (CountryDocumentID, CountryID, PillarID, SectionPath,
                         SectionTitle, SectionLevel, PageStart, PageEnd)
-                VALUES (source.CityDocumentID, source.CityID, source.PillarID,
+                VALUES (source.CountryDocumentID, source.CountryID, source.PillarID,
                         source.SectionPath, source.SectionTitle,
                         source.SectionLevel, source.PageStart, source.PageEnd)
 
@@ -213,8 +192,8 @@ class DatabaseRepository:
             """
 
         params = (
-            city_doc_id,
-            city_id,
+            country_doc_id,
+            country_id,
             pillar_id,
             section.get("path"),
             section.get("title"),
@@ -233,8 +212,8 @@ class DatabaseRepository:
     async def save_document_chunks(
         self,
         chunks: List[Dict],
-        city_doc_id: int,
-        city_id: int,
+        country_doc_id: int,
+        country_id: Optional[int],
         pillar_id: Optional[int],
     ) -> None:
         if not chunks:
@@ -242,16 +221,16 @@ class DatabaseRepository:
 
         query = """
             INSERT INTO DocumentChunks
-                (ChunkID, CityDocumentID, TOCID, CityID, PillarID,
+                (ChunkID, CountryDocumentID, TOCID, CountryID, PillarID,
                  ChunkIndex, ChunkText)
             VALUES (?,?,?,?,?,?,?)
         """
         params = [
             (
                 c.get("chunk_id"),
-                city_doc_id,
+                country_doc_id,
                 c.get("toc_id"),
-                city_id,
+                country_id,
                 pillar_id,
                 c.get("chunk_index"),
                 c.get("chunk_text"),
@@ -264,48 +243,49 @@ class DatabaseRepository:
     def test_connection(self) -> bool:
        return self.engine.test_connection()
 
-    async def get_ai_city_context(
+    async def get_active_pillars(self) -> List[Dict[str, Any]]:
+        """Return active pillars ordered for AI prompt construction."""
+        query = """
+            SELECT PillarID, PillarName, Description, DisplayOrder
+            FROM Pillars
+            WHERE IsDeleted = 0 AND IsActive = 1
+            ORDER BY DisplayOrder, PillarID
+        """
+        return await self.engine.fetch_dicts_async(query)
+
+    async def get_active_pillars_map(self) -> Dict[int, Dict[str, Any]]:
+        pillars = await self.get_active_pillars()
+        return {int(p["PillarID"]): p for p in pillars}
+
+    async def get_ai_country_context(
     self,
-    city_id: int,
-    year: int,
-    pillar_id: Optional[int] = None,
-    ) -> Optional[Dict[str, Any]]:
+        country_id: int,
+        year: int,
+        pillar_id: Optional[int] = None,
+    ) -> Dict[str, Any]:
 
         query = """
-                 SELECT 
-            c.CityName,
-            c.Country,
-            a.AIScore,
-            a.AIProgress,
-            a.EvaluatorProgress,
-            a.Discrepancy,
-            a.ConfidenceLevel,
-            a.EvidenceSummary,
-            a.CrossPillarPatterns,
-            a.InstitutionalCapacity,
-            a.EquityAssessment,
-            a.SustainabilityOutlook,
-            a.StrategicRecommendations,
-            a.DataTransparencyNote,
-            a.ImmediateSituationSummary,
-            a.KeyDevelopments,
-            a.CriticalRisks,
-            a.Gaps,
-            a.UpdatedAt,
-            a.IsVerified,
-            a.VerifiedBy,
-            p.PillarName
-        FROM Cities c
-        LEFT JOIN Pillars p
-            ON p.PillarID = ?
-        LEFT JOIN AICityScores a
-            ON a.CityID = c.CityID
+            SELECT 
+                a.AIProgress as PeaceEnablerScore,
+                c.CountryName,
+                c.Continent,
+                a.EvidenceSummary,
+                a.StructuralEvidence,
+                a.OutcomeEvidence,
+                a.PerceptionEvidence,
+                a.CrossPillarPatterns,
+                a.StrategicRecommendation,
+                p.PillarName
+            FROM AICountryScores a
+            JOIN Countries c 
+                ON a.CountryID = c.CountryID 
+                AND c.IsDeleted = 0
+            left join pillars p on p.PillarID=?
+            WHERE a.CountryID = ?
             AND a.Year = ?
-        WHERE c.CityID = ?
-        AND c.IsDeleted = 0
         """
 
-        params = (pillar_id, year, city_id)
+        params = (pillar_id,country_id, year)
 
         result = await self.engine.fetch_dicts_async(query, params)
 
@@ -313,7 +293,7 @@ class DatabaseRepository:
         
     async def save_immediate_situation_summary(
         self,
-        city_id: int,
+        country_id: int,
         year: int,
         record: dict
     ) -> None:
@@ -322,7 +302,7 @@ class DatabaseRepository:
             return
 
         query = """
-            UPDATE AICityScores
+            UPDATE AICountryScores
             SET 
                 ImmediateSituationSummary = ?,
                 KeyDevelopments = ?,
@@ -333,7 +313,7 @@ class DatabaseRepository:
                     THEN ? 
                     ELSE EvidenceSummary 
                 END
-            WHERE CityID = ?
+            WHERE CountryID = ?
             AND Year = ?
         """
 
@@ -347,7 +327,7 @@ class DatabaseRepository:
             exec_summary,   # check NULL
             exec_summary,   # check empty
             exec_summary,   # value to update
-            city_id,
+            country_id,
             year
         )
 
@@ -356,77 +336,44 @@ class DatabaseRepository:
 
     async def get_FAQ_context(self, isglobal: bool = False) -> List[Dict]:
 
-        where = "WHERE Related LIKE 'global'" if isglobal else "WHERE Related LIKE 'city'"
+        where = "WHERE Related LIKE 'global'" if isglobal else "WHERE Related LIKE 'country'"
 
         query = f"""
-            SELECT FAQID, Related, Category, QuestionText,ProcName
+            SELECT FAQID, Related, Category, QuestionText
             FROM AIAssistantFAQ
             {where}
         """
 
         return await self.engine.fetch_dicts_async(query)
 
-    async def usp_GetCityDataForLLM(self, city_id: int, FAQIDs: List[str], pillarId: Optional[int] = None) -> List[Dict]:
-
-        query = """
-            EXEC dbo.usp_GetCityDataForLLM ?, ?, ?
-        """
-
-        params = (
-           city_id, json.dumps(FAQIDs), pillarId
-        )
-        response = await self.engine.fetch_dicts_async(query, params)
-
-        return response
-    
-    async def usp_GetGlobalDataForLLM(self, FAQIDs: List[str]) -> List[Dict]:
-        query = """
-            EXEC dbo.usp_GetGlobalDataForLLM ?
-        """
-        params = ( json.dumps(FAQIDs))
-        response = await self.engine.fetch_dicts_async(query, params)
-
-        return response
-
-    async def GetLocalContextDataForLLM(self, FAQIDs: List[str],city_id: Optional[int] = None,  pillarId: Optional[int] = None) -> List[Dict]:
+    async def GetLocalContextDataForLLM(self, FAQIDs: List[str],country_id: Optional[int] = None,  pillarId: Optional[int] = None) -> List[Dict]:
 
         query = """
             EXEC dbo.usp_GetLocalContextDataForLLM ?, ?, ?
         """
 
         params = (
-            json.dumps(FAQIDs), city_id, pillarId
+            json.dumps(FAQIDs),country_id, pillarId
         )
         response = await self.engine.fetch_dicts_async(query, params)
 
         return response
     
-    async def AiRecalculateCityScore(self, cityID: int) -> None:
-
-        await self.engine.execute_sp_async(
-            "EXEC sp_AiRecalculateCityScore @CityID = ?",
-            (cityID,),
-        )
-
-    async def AiInsertAnalyticalLayerResults(self, cityID: int) -> None:
-
-        await self.engine.execute_sp_async(
-            "EXEC sp_AiInsertAnalyticalLayerResults @CityID = ?",
-            (cityID,),
-        )
-
-    async def GetCrossComparisionLocalContextDataForLLM(self, city_ids: List[str]) -> List[Dict]:
+    async def GetCrossComparisionLocalContextDataForLLM(self, country_ids: List[str]) -> List[Dict]:
 
         query = """
-            EXEC dbo.usp_CityCrossComparision_faq ?
+            EXEC dbo.usp_CountryCrossComparision_faq ?
         """
 
         params = (
-            json.dumps(city_ids)
+            json.dumps(country_ids)
         )
         response = await self.engine.fetch_dicts_async(query, params)
 
-        return response    
+        return response
+
+
+
 # ---------------------------------------------------------------------------
 # Singleton
 # ---------------------------------------------------------------------------

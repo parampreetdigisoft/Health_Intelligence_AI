@@ -28,9 +28,9 @@ class EarlyWarningItem(BaseModel):
     impactLevel: str
 
 
-class CityExecutiveSlidesResult(BaseModel):
-    cityId: int
-    cityName: str
+class CountryExecutiveSlidesResult(BaseModel):
+    countryId: int
+    countryName: str
 
     dailyPerformance: PerformanceSummary
 
@@ -43,7 +43,7 @@ class CityExecutiveSlidesResult(BaseModel):
     earlyWarnings: List[EarlyWarningItem]
 
 
-class ChatCityExecutiveSlidesResponse(BaseModel):
+class ChatCountryExecutiveSlidesResponse(BaseModel):
     success: bool
     message: str
-    result: CityExecutiveSlidesResult
+    result: CountryExecutiveSlidesResult

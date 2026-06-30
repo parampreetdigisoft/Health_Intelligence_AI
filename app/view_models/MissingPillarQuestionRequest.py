@@ -2,5 +2,5 @@ from typing import Optional
 from pydantic import BaseModel
 
 class MissingPillarQuestionRequest(BaseModel):
-    cityID: int
+    countryID: int
     pillarID: Optional[int] = None

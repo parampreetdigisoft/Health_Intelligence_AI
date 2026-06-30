@@ -1,7 +1,11 @@
 """
 Data Analyzer Service - LLM-powered analysis of SQL Server data
-Enhanced with Veridian Urban Index pillar-specific prompts
+Enhanced with Africa Health Intelligence Platform (AHIP) pillar prompts.
+Pillars are loaded dynamically from the database — not hardcoded.
 """
+
+from typing import Dict, List, Mapping, Optional, Union
+
 _PILLAR_FEED_JSON_RULES = """
         Return ONLY valid JSON.
         - Output must start with { and end with }
@@ -14,549 +18,283 @@ _PILLAR_FEED_OUTPUT_STYLE = """
         - Use clear, concise statements; no bullet lists inside JSON strings
         """
 
+PillarRecord = Dict[str, Union[int, str, None]]
 
-class PillarPrompts:
-    """Veridian Urban Index pillar-specific prompt templates"""
 
-    PILLAR_CONTEXTS = {
-    1: {
-        "name": "Cleanliness and Sanitation",
-        "focus": (
-            "How effectively does the city manage sanitation, waste systems, drainage, "
-            "public hygiene, and environmental cleanliness? Look for: solid waste collection, "
-            "sewerage systems, wastewater treatment, drainage infrastructure, public hygiene "
-            "campaigns, recycling programs, and sanitation access across formal and informal areas."
-        ),
-        "search_signals": [
-            "waste collection disruption",
-            "urban flooding drainage failure",
-            "sanitation infrastructure upgrade",
-            "public hygiene campaign",
-            "sewage overflow incident",
-        ],
-        "red_flags": [
-            "Open dumping and unmanaged waste",
-            "Sewage discharge into public waterways",
-            "Sanitation exclusion in informal settlements",
-            "Chronic drainage collapse during rainfall",
-        ],
-    },
+class AHIPPillarPrompts:
+    """Provides AHIP governance rules and dynamic pillar context from database records."""
 
-    2: {
-        "name": "Smartness and Digital Readiness",
-        "focus": (
-            "How digitally connected and technologically capable is the city? "
-            "Look for: broadband access, smart governance systems, cybersecurity readiness, "
-            "digital inclusion, e-governance platforms, smart mobility systems, "
-            "public Wi-Fi access, and AI-enabled urban management."
-        ),
-        "search_signals": [
-            "smart city initiative",
-            "cyberattack on city systems",
-            "digital governance rollout",
-            "broadband infrastructure expansion",
-            "public digital services",
-        ],
-        "red_flags": [
-            "Digital exclusion by income or geography",
-            "Weak cybersecurity protections",
-            "Surveillance abuse concerns",
-            "Smart city branding without measurable systems",
-        ],
-    },
+    GOVERNANCE_PROTOCOL = """
+        =============================================================================
+        AI MASTER GOVERNANCE PROTOCOL (AHIP) — MANDATORY FOR EVERY ASSESSMENT
+        Africa Health Intelligence Platform
+        =============================================================================
 
-    3: {
-        "name": "Conflict Risk and Early Warning",
-        "focus": (
-            "Are there emerging tensions, protests, violence risks, or social instability signals "
-            "within the urban environment? Look for: protest activity, communal tensions, "
-            "crime escalation, hate speech, forced evictions, policing disputes, "
-            "and effectiveness of mediation or crisis response systems."
-        ),
-        "search_signals": [
-            "urban protest escalation",
-            "communal tension incident",
-            "policing conflict",
-            "civil unrest warning",
-            "violent clashes city",
-        ],
-        "red_flags": [
-            "Escalating unrest without mediation",
-            "Suppressed reporting of violence",
-            "Politicized policing",
-            "Rapid spread of hate speech or extremist mobilization",
-        ],
-    },
+        1. DATA INPUTS FOR OUTBREAK PREDICTION & HEALTH INTELLIGENCE
+        AHIP ingests and correlates multi-source data, including:
+        - Historical outbreak records (1950–present), disaggregated by disease, geography,
+          seasonality, and transmission context.
+        - Real-time surveillance feeds: syndromic surveillance, laboratory-confirmed cases,
+          and event-based reporting.
+        - Environmental and climate data: temperature, rainfall, flooding, drought,
+          vegetation indices, and vector habitat suitability.
+        - Population mobility data: internal migration, cross-border movement, travel flows,
+          and anonymized mobile network indicators.
+        - Digital and media signals: news scraping and monitored social media indicators
+          relevant to health events.
+        - Health system readiness indicators from AHIP pillars on surveillance, preparedness,
+          infrastructure, workforce, and supply chains.
+        - Vaccination coverage and immunity gaps: routine immunization and outbreak-specific
+          campaigns.
+        These data streams are updated on rolling cycles and standardized prior to modeling.
 
-    4: {
-        "name": "Infrastructure, Mobility, and Service Delivery",
-        "focus": (
-            "How reliable, inclusive, and resilient are the city's infrastructure and mobility systems? "
-            "Look for: electricity reliability, transport systems, public transit access, "
-            "road quality, water access, ICT infrastructure, and maintenance capacity."
-        ),
-        "search_signals": [
-            "metro or transit disruption",
-            "power outage citywide",
-            "water shortage urban area",
-            "infrastructure investment",
-            "traffic congestion crisis",
-        ],
-        "red_flags": [
-            "Major infrastructure failures",
-            "Persistent service outages",
-            "Peripheral communities excluded from services",
-            "Low infrastructure maintenance capacity",
-        ],
-    },
+        2. AI MODELING ARCHITECTURE
+        AHIP employs an ensemble modeling approach, combining:
+        - Tree-based machine-learning models (random forests, gradient boosting) for non-linear
+          pattern detection.
+        - Neural networks for complex interaction effects.
+        - Time-series forecasting models (ARIMA, Prophet) for seasonal and trend analysis.
+        - Anomaly-detection algorithms for abnormal case increases or environmental shifts.
+        - Network and mobility models to estimate transmission pathways.
+        Individual model outputs are combined into a composite outbreak risk score through
+        ensemble weighting. Models are retrained on rolling windows, back-tested against
+        historical outbreaks, and monitored for performance drift.
 
-    5: {
-        "name": "Green Infrastructure, Forests, and Urban Ecology",
-        "focus": (
-            "How effectively does the city protect ecological systems and integrate green infrastructure? "
-            "Look for: parks, biodiversity, tree canopy, urban forests, climate adaptation measures, "
-            "green corridors, and equitable access to green spaces."
-        ),
-        "search_signals": [
-            "urban greening initiative",
-            "heat mitigation project",
-            "tree canopy expansion",
-            "park development",
-            "ecological restoration project",
-        ],
-        "red_flags": [
-            "Unequal access to green spaces",
-            "Ecological destruction from development",
-            "Greenwashing without measurable impact",
-            "Climate vulnerability without adaptation planning",
-        ],
-    },
+        3. PREDICTION HORIZONS
+        - Short-term: 1–4 weeks
+        - Medium-term: 1–3 months
+        - Seasonal: 3–9 months
 
-    6: {
-        "name": "Cultural Heritage, Identity, and Narrative Power",
-        "focus": (
-            "How does the city preserve heritage, identity, and cultural continuity? "
-            "Look for: heritage conservation, monuments, museums, creative economies, "
-            "minority representation, cultural funding, and protection of historic districts."
-        ),
-        "search_signals": [
-            "heritage restoration",
-            "historic district redevelopment",
-            "monument controversy",
-            "cultural preservation funding",
-            "museum or heritage initiative",
-        ],
-        "red_flags": [
-            "Erasure of cultural identity",
-            "Redevelopment displacing historic communities",
-            "Politicized heritage narratives",
-            "Neglect of minority heritage sites",
-        ],
-    },
+        4. PREDICTIVE OUTPUTS
+        - Disease-specific outbreak probability (0–100%)
+        - Subnational hotspot maps
+        - Early warning alerts to national PHEOCs and designated authorities
+        - Projected trajectory: expected case burden and hospitalization demand
+        - Resource gap projections (beds, staff, diagnostics, medicines, vaccines)
+        - Confidence intervals reflecting data quality and model performance
+        Each alert must include dominant contributing factors (e.g., rainfall anomaly,
+        mobility surge, low vaccine stock).
 
-    7: {
-        "name": "Housing and Land Security",
-        "focus": (
-            "Are housing systems affordable, secure, and equitable? "
-            "Look for: eviction trends, housing affordability, informal settlement upgrading, "
-            "land rights disputes, public housing access, and zoning inequalities."
-        ),
-        "search_signals": [
-            "housing affordability crisis",
-            "forced eviction protests",
-            "public housing initiative",
-            "land dispute urban area",
-            "informal settlement upgrading",
-        ],
-        "red_flags": [
-            "Mass forced evictions",
-            "Speculative displacement",
-            "Extreme housing inequality",
-            "Lack of tenure security",
-        ],
-    },
+        5. INTEGRATION WITH HEALTH SYSTEM READINESS PILLARS
+        Outbreak risk is cross-referenced with system capacity to determine operational
+        vulnerability across surveillance, preparedness, infrastructure, workforce, and
+        supply chain pillars. This integration converts prediction into actionable readiness
+        intelligence.
 
-    8: {
-        "name": "Public Health, Inclusion, and Wellbeing",
-        "focus": (
-            "How accessible and inclusive are health and wellbeing systems in the city? "
-            "Look for: healthcare access, mental health systems, emergency services, "
-            "food security, disability inclusion, and social protection coverage."
-        ),
-        "search_signals": [
-            "hospital capacity pressure",
-            "disease outbreak urban",
-            "mental health initiative",
-            "healthcare access inequality",
-            "public health emergency",
-        ],
-        "red_flags": [
-            "Healthcare system overload",
-            "Exclusion of vulnerable populations",
-            "Unequal emergency access",
-            "Public health crises without coordinated response",
-        ],
-    },
+        6. HUMAN-IN-THE-LOOP VALIDATION
+        High-risk signals are reviewed by epidemiologists and country experts prior to alert
+        issuance. Contextual filters address known data artifacts and seasonal norms.
+        False-positive controls are applied. Final alerts are released only after human
+        validation to preserve trust and minimize alert fatigue.
 
-    9: {
-        "name": "Environmental Hazards and Urban Safety",
-        "focus": (
-            "How exposed is the city to climate and disaster risks, and how prepared are systems "
-            "to respond? Look for: flooding, heatwaves, wildfires, air quality risks, "
-            "hazard mapping, emergency preparedness, and adaptation measures."
-        ),
-        "search_signals": [
-            "urban flooding",
-            "heatwave emergency",
-            "air quality alert",
-            "disaster preparedness activation",
-            "storm impact city",
-        ],
-        "red_flags": [
-            "Repeated unmanaged disasters",
-            "Unsafe urban expansion",
-            "Weak adaptation infrastructure",
-            "Hazard exposure concentrated in vulnerable districts",
-        ],
-    },
+        7. EVIDENCE HIERARCHY (priority order)
+        L1: National health laws, budgets, audits, procurement, official surveillance reports
+        L2: National health authorities, auditor-general, regulatory bodies
+        L3: WHO AFRO, Africa CDC, World Bank, IMF, regional health institutions
+        L4: Peer-reviewed research, validated health system assessments
+        L5: NGOs, civil society, community health reporting
+        L6: Technical, satellite, and environmental data
+        L7: Media (context only, never primary)
+        Rules:
+        - ≥2 independent sources per claim
+        - No single-source scoring
+        - Structural/operational evidence > perception
 
-    10: {
-        "name": "Civic Resilience and Social Cohesion",
-        "focus": (
-            "How resilient, connected, and socially cohesive are city communities? "
-            "Look for: civic participation, volunteerism, trust indicators, "
-            "community resilience programs, inclusion frameworks, and social solidarity systems."
-        ),
-        "search_signals": [
-            "community resilience initiative",
-            "civic participation program",
-            "social cohesion campaign",
-            "neighborhood solidarity network",
-            "urban inclusion initiative",
-        ],
-        "red_flags": [
-            "Social fragmentation and polarization",
-            "Declining public trust",
-            "Exclusion of marginalized groups",
-            "Weak civic participation",
-        ],
-    },
+        8. FOUR-LAYER EVIDENCE (ALL REQUIRED)
+        a) Structural (laws, institutions, policies)
+        b) Operational (budgets, staffing, delivery, supply)
+        c) Outcome (measured health results)
+        d) Perception (trust, access barriers, community reporting)
+        → Perception cannot override structural/operational evidence
 
-    11: {
-        "name": "Business and Investment Environment",
-        "focus": (
-            "How attractive, fair, and stable is the city's business and investment ecosystem? "
-            "Look for: business growth, startup ecosystems, licensing systems, "
-            "investment inflows, SME support, commercial infrastructure, and regulatory efficiency."
-        ),
-        "search_signals": [
-            "startup ecosystem growth",
-            "foreign investment city",
-            "business regulation reform",
-            "commercial infrastructure project",
-            "economic development initiative",
-        ],
-        "red_flags": [
-            "Regulatory corruption",
-            "Weak contract enforcement",
-            "Hostile investment climate",
-            "Economic exclusion of SMEs",
-        ],
-    },
+        9. DISTRIBUTIONAL ANALYSIS (MANDATORY)
+        Test for regional disparities, urban vs rural gaps, income inequality, gender and
+        identity-based access gaps. Severe disparity = score reduction.
 
-    12: {
-        "name": "Employment and Workforce Development",
-        "focus": (
-            "Does the city generate inclusive employment and workforce opportunities? "
-            "Look for: job creation, labor force participation, skills training, "
-            "youth employment, TVET systems, and workforce inclusion policies."
-        ),
-        "search_signals": [
-            "job creation initiative",
-            "youth unemployment",
-            "skills training program",
-            "labor market disruption",
-            "workforce development strategy",
-        ],
-        "red_flags": [
-            "Persistent unemployment",
-            "Labor exploitation",
-            "Skills mismatch",
-            "Growth without inclusive workforce access",
-        ],
-    },
+        10. SCORING SCALE (FIXED)
+         4       = Strong and stress-resilient
+         3       = Functioning but uneven
+         2       = Mixed and vulnerable
+         1       = Structurally weak
+         0       = Absent or destabilizing
+         N/A     = Structurally irrelevant to this specific country or context
+         Unknown = Insufficient verifiable data (document as opacity risk — does NOT
+                    reduce the numeric score, but must be flagged)
 
-    13: {
-        "name": "Urban Governance and Integrity",
-        "focus": (
-            "How transparent, accountable, and trusted are city governance systems? "
-            "Look for: anti-corruption investigations, procurement transparency, "
-            "audit reports, citizen participation, institutional oversight, and governance ethics."
-        ),
-        "search_signals": [
-            "city corruption investigation",
-            "procurement transparency reform",
-            "municipal governance dispute",
-            "audit report findings",
-            "citizen participation initiative",
-        ],
-        "red_flags": [
-            "Opaque procurement systems",
-            "Institutional corruption",
-            "Weak oversight mechanisms",
-            "Declining trust in city leadership",
-        ],
-    },
+        11. DATA SILENCE RULE
+        - Assign "Unknown" when data cannot be verified
+        - State cause (conflict, suppression, incapacity, missing systems)
+        - Treat as governance risk — silence ≠ success
 
-    14: {
-        "name": "Urban Education, Learning Ecosystems, and Knowledge Equity",
-        "focus": (
-            "How equitable and future-ready are urban education and learning systems? "
-            "Look for: school access, learning quality, digital readiness, "
-            "teacher capacity, literacy gaps, and equitable education access across districts."
-        ),
-        "search_signals": [
-            "education reform city",
-            "school infrastructure investment",
-            "digital learning expansion",
-            "teacher shortage",
-            "education inequality",
-        ],
-        "red_flags": [
-            "Large educational disparities",
-            "School exclusion in low-income areas",
-            "Digital divide in learning access",
-            "Persistent dropout concentration",
-        ],
-    },
-}
-    
-    @staticmethod
-    def get_pillar_context(pillarId: int) -> str:
-        """Get specific context and evaluation criteria for each pillar"""
-        
-        contexts = {
-             # Urban Governance and Integrity
-            13: """
-                Focus: Transparency, participation, accountability, ethics, institutional capacity
-                Key Evidence: Municipal budgets, procurement records, audit reports, ombudsman data,
-                anti-corruption statistics, FOI response rates, council minutes
-                Red Flags: Missing oversight data, zero complaints, perfect integrity claims
-                Trustworthy Sources: City auditor reports, Transparency International, World Justice Project
-            """,
-            # Urban Education, Learning Ecosystems, and Knowledge Equity
-            14: """
-                Focus: Access, quality, spatial equity, digital readiness, lifelong learning
-                Key Evidence: Enrollment rates, completion rates, teacher-student ratios, school mapping,
-                budget allocations, inspection reports, early childhood to university coverage
-                Red Flags: National-only data, dual systems (public vs private gaps), spatial inequality
-                Trustworthy Sources: UNESCO Institute for Statistics, UNICEF, city education bureaus
-            """,
+        12. CONTINUOUS LEARNING AND QUALITY ASSURANCE
+        - Quarterly back-testing and performance reporting
+        - Drift detection triggers retraining
+        - Accuracy metrics (AUC, precision, recall, Brier score) tracked over time
+        - Prediction audit trail maintained
 
-            # Business and Investment Environment
-            11: """
-                Focus: Ease of doing business, property rights, dispute resolution, capital access
-                Key Evidence: Business registration data, licensing portals, commercial court performance,
-                land registries, investment promotion, tax structure, SME treatment
-                Red Flags: Informal market contradictions, hostile regulation, weak property enforcement
-                Trustworthy Sources: World Bank Enterprise Surveys, business registration agencies
-            """,
-            
-            #Smartness and Digital Readiness
-            2: """
-                Focus: Digital infrastructure, e-governance, data systems, digital inclusion, cybersecurity
-                Key Evidence: Broadband penetration, e-service adoption, data protection enforcement,
-                cybersecurity incidents, public Wi-Fi, school connectivity, usage gaps by gender/income
-                Red Flags: Smart city branding without metrics, digital inequality, vendor marketing
-                Trustworthy Sources: ITU, national telecom regulators, municipal ICT offices
-            """,
-            
-            #Cleanliness and Sanitation
-            1: """
-                Focus: Solid waste, liquid waste, hygiene, public cleanliness, sanitation governance
-                Key Evidence: Waste collection coverage, sewerage networks, treatment plants, recycling rates,
-                WASH-related disease incidence, school/market WASH audits, budget allocations
-                Red Flags: CBD cleanliness vs informal settlements, missing treatment data, coverage gaps
-                Trustworthy Sources: WHO/UNICEF JMP, UN-Habitat, municipal sanitation authorities
-            """,
-            
-            #Conflict Risk and Early Warning
-            3: """
-                Focus: Structural drivers, protest dynamics, hate speech, early warning, mediation
-                Key Evidence: Police statistics, protest/clash data, grievance logs, land disputes,
-                eviction records, peace committee reports, media restrictions
-                Red Flags: "No incidents" in tense environments, under-reporting, service-delivery protests
-                Trustworthy Sources: ACLED, UNDP fragility diagnostics, police records
-            """,
-            
-            #Civic Resilience and Social Cohesion
-            10: """
-                Focus: Trust, solidarity systems, civic participation, inclusion, community resilience
-                Key Evidence: Election turnout, participatory budgeting, neighborhood associations,
-                volunteer networks, trust surveys, interpersonal solidarity indicators
-                Red Flags: High trust in brittle contexts, absent civil society in authoritarian settings
-                Trustworthy Sources: Afrobarometer, Latinobarómetro, UNDP social cohesion assessments
-            """,
-            
-            #Housing and Land Security
-            7: """
-                Focus: Tenure security, affordability, evictions, gendered land rights, spatial justice
-                Key Evidence: Land registries, titling records, zoning maps, eviction data, public housing,
-                informal settlement upgrading, inheritance laws, women's land rights
-                Red Flags: Forced evictions, mass demolitions, gender-blind data, informal=illegitimate framing
-                Trustworthy Sources: UN-Habitat, World Bank LGAF, cadastral records
-            """,
-            
-            #Environmental Hazards and Urban Safety
-            9: """
-                Focus: Climate/disaster risk, hazard mapping, exposure, built environment, health risks
-                Key Evidence: Hazard maps, disaster loss data, flood/heat records, air/water quality,
-                building inspections, drainage plans, adaptation measures
-                Red Flags: Hazard maps ignoring peripheries, no adaptation despite projections
-                Trustworthy Sources: IPCC, UNDRR, EM-DAT, WHO environmental health data
-            """,
-            
-            #Public Health, Inclusion, and Wellbeing
-            8: """
-                Focus: Healthcare access, mental health, disability inclusion, food security, social protection
-                Key Evidence: Facility locations, staffing, service coverage, mortality data, insurance,
-                emergency services, nutrition programs, disability registries, accessibility audits
-                Red Flags: Averaged disparities, scarce mental health/disability data, informal settlement neglect
-                Trustworthy Sources: WHO Global Health Observatory, UNICEF, health ministries
-            """,
-            
-            #Infrastructure, Mobility, and Service Delivery
-            4: """
-                Focus: Water, electricity, transport, ICT, service reliability, equitable access, maintenance
-                Key Evidence: Connection rates, outages, tariff structures, route maps, ridership, safety,
-                maintenance budgets, road crashes, pedestrian safety, complaint systems
-                Red Flags: Network presence ≠ usable access, low maintenance budgets, excluded informal transport
-                Trustworthy Sources: UN-Habitat, utilities, transport authorities, World Bank
-            """,
-            #Green Infrastructure, Forests, and Urban Ecology
-            5: """
-                Focus: Urban forests, parks, biodiversity, nature-based solutions, ecological justice
-                Key Evidence: Park locations/sizes, tree inventories, canopy cover, protected areas,
-                biodiversity data, green corridors, climate strategies with NBS
-                Red Flags: Unequal green access by income, unverified tree-planting, displacement via beautification
-                Trustworthy Sources: UNEP, FAO, Global Forest Watch, parks departments
-            """,
-            
-            #Employment and Workforce Development
-            12: """
-                Focus: Job creation, decent work, skills, labor rights, inclusion of marginalized workers
-                Key Evidence: Labor force surveys, employment services, TVET programs, local content clauses,
-                labor inspections, social security, unemployment benefits
-                Red Flags: Underemployment ignored, megaprojects without skills programs, weak labor enforcement
-                Trustworthy Sources: ILO, labor ministries, World Bank jobs diagnostics
-            """,
-            
-            #Cultural Heritage, Identity, and Narrative Power
-            6: """
-                Focus: Heritage protection, inclusive memory, symbolic representation, creative economies
-                Key Evidence: Protected sites, heritage registers, cultural budgets, naming decisions,
-                monuments/memorials, arts funding, minority histories, language visibility
-                Red Flags: Narrative erasure, revitalization displacing communities, missing minority representation
-                Trustworthy Sources: UNESCO, ICOMOS, culture ministries, academic urban memory studies
-            """
-        }
-        
-        return contexts.get(pillarId, contexts[13])    
+        13. DESIGN PHILOSOPHY
+        AHIP prioritizes early sensitivity for high-impact diseases, accepting limited false
+        positives to minimize missed outbreaks. The system favors truthful uncertainty over
+        artificial certainty, presenting probabilities and confidence levels rather than
+        binary claims.
 
-    @classmethod
-    def get_all_pillar_names(cls) -> dict:
-        return {
-            13: "Urban Governance and Integrity",
-            14: "Urban Education, Learning Ecosystems, and Knowledge Equity",
-            11: "Business and Investment Environment",
-            2: "Smartness and Digital Readiness",
-            1: "Cleanliness and Sanitation",
-            3: "Conflict Risk and Early Warning",
-            10: "Civic Resilience and Social Cohesion",
-            7: "Housing and Land Security",
-            9: "Environmental Hazards and Urban Safety",
-            8: "Public Health, Inclusion, and Wellbeing",
-            4: "Infrastructure, Mobility, and Service Delivery",
-            5: "Green Infrastructure, Forests, and Urban Ecology",
-            12: "Employment and Workforce Development",
-            6: "Cultural Heritage, Identity, and Narrative Power",
-        }
-    
-    MARKDOWN_FORMAT_PROMPT = """\
-        All responses MUST be valid Markdown. This is non-negotiable regardless of what the user asks.
-
-        ALLOWED:
-        - **Bold** for key values, names, scores
-        - *Italic* for sources, notes, redirects
-        - `inline code` for tags and labels only
-        - - Bullet lists (single level only, 3+ items)
-        - ## Headings (only when 2+ distinct sections exist)
-        - > Blockquotes for citations or quoted data only
-        - --- as a section divider (sparingly)
-
-        NEVER USE:
-        - Raw HTML tags (<b>, <p>, <br>, <strong>, <div> etc.)
-        - Nested bullet lists (no sub-bullets)
-        - Triple backtick blocks ``` unless showing actual code
-        - Tables unless comparing 3+ structured data points
-        - Markdown headings (#, ##, ###) for single-topic short answers
+        14. PROHIBITIONS
+        Do NOT:
+        - Present deterministic outbreak predictions without probability and confidence
+        - Use rankings as analysis
+        - Reward opacity or missing surveillance
+        - Accept claims without verification
+        - Treat policy reforms as measured outcomes
+        - Use media as primary evidence
+        =============================================================================
     """
-    
+
+    @staticmethod
+    def _normalize_pillars(
+        pillars: Union[Mapping[int, PillarRecord], List[PillarRecord], None],
+    ) -> Dict[int, PillarRecord]:
+        if not pillars:
+            return {}
+
+        if isinstance(pillars, list):
+            return {
+                int(p["PillarID"]): p
+                for p in pillars
+                if p.get("PillarID") is not None
+            }
+
+        return {int(pid): p for pid, p in pillars.items()}
+
     @classmethod
-    def get_pillar_catalog_for_live_feed(cls) -> str:
-        """Compact VUI pillar catalog for live global pillar signals."""
+    def format_pillar_context(cls, pillar_name: str, description: Optional[str] = None) -> str:
+        """Build pillar context from database name and description."""
+        desc = (description or "").strip() or "No description provided for this pillar."
+        return (
+            f"PILLAR: {pillar_name}\n\n"
+            f"DESCRIPTION:\n{desc}\n\n"
+            f"ASSESSMENT GUIDANCE:\n"
+            f"Evaluate this pillar using the description above, the AHIP governance protocol, "
+            f"and verifiable health-system evidence for the target African country. "
+            f"Focus on structural capacity, operational delivery, measured outcomes, and "
+            f"population-level access and equity impacts."
+        )
+
+    @classmethod
+    def get_pillar_context(
+        cls,
+        pillar_id: int,
+        pillars: Union[Mapping[int, PillarRecord], List[PillarRecord], None] = None,
+        *,
+        pillar_name: Optional[str] = None,
+        description: Optional[str] = None,
+    ) -> str:
+        """Return formatted context for a pillar using DB records or explicit name/description."""
+        pillar_map = cls._normalize_pillars(pillars)
+        pillar = pillar_map.get(pillar_id)
+        if pillar:
+            return cls.format_pillar_context(
+                str(pillar.get("PillarName") or pillar_name or f"Pillar {pillar_id}"),
+                pillar.get("Description") or description,
+            )
+
+        if pillar_name:
+            return cls.format_pillar_context(pillar_name, description)
+
+        return f"No context available for pillar ID {pillar_id}."
+
+    @classmethod
+    def get_all_pillar_names(
+        cls,
+        pillars: Union[Mapping[int, PillarRecord], List[PillarRecord], None] = None,
+    ) -> Dict[int, str]:
+        """Return a mapping of pillar ID to pillar name from database records."""
+        pillar_map = cls._normalize_pillars(pillars)
+        return {
+            pid: str(p.get("PillarName", f"Pillar {pid}"))
+            for pid, p in sorted(pillar_map.items())
+        }
+
+    @classmethod
+    def get_pillar_catalog_for_live_feed(
+        cls,
+        pillars: Union[Mapping[int, PillarRecord], List[PillarRecord], None] = None,
+    ) -> str:
+        """Compact AHIP pillar catalog for live pillar signals."""
+        pillar_map = cls._normalize_pillars(pillars)
+        if not pillar_map:
+            return "No active pillars configured."
+
         lines = []
-        for pid in sorted(cls.PILLAR_CONTEXTS.keys()):
-            pillar = cls.PILLAR_CONTEXTS[pid]
-            signals = ", ".join(pillar["search_signals"][:3])
+        for pid in sorted(pillar_map.keys()):
+            pillar = pillar_map[pid]
+            name = str(pillar.get("PillarName", f"Pillar {pid}"))
+            description = str(pillar.get("Description") or "").strip()
+            focus = description[:280].strip() if description else name
             lines.append(
-                f"Pillar {pid} — {pillar['name']}\n"
-                f"  Focus: {pillar['focus'][:280].strip()}\n"
-                f"  Search hints: {signals}"
+                f"Pillar {pid} — {name}\n"
+                f"  Focus: {focus}"
             )
         return "\n\n".join(lines)
 
     @classmethod
-    def pillar_live_signals_prompt(cls) -> str:
-        catalog = cls.get_pillar_catalog_for_live_feed()
-        return f"""
-        You are the  Verdian Urban Index (VUI) live pillar intelligence engine.
+    def pillar_live_signals_prompt(
+        cls,
+        pillars: Union[Mapping[int, PillarRecord], List[PillarRecord], None] = None,
+    ) -> str:
+        pillar_map = cls._normalize_pillars(pillars)
+        pillar_ids = sorted(pillar_map.keys())
+        pillar_count = len(pillar_ids)
+        id_range = (
+            f"{pillar_ids[0]} through {pillar_ids[-1]}"
+            if pillar_count > 1
+            else str(pillar_ids[0]) if pillar_ids else "none"
+        )
+        catalog = cls.get_pillar_catalog_for_live_feed(pillar_map)
+        example_id = pillar_ids[0] if pillar_ids else 1
+        example_name = (
+            str(pillar_map[example_id].get("PillarName", "health governance"))
+            if pillar_map
+            else "health governance"
+        )
+        example_query = example_name.lower().replace(" ", "+").replace(",", "")
 
-        Produce a LIVE global snapshot: exactly ONE card per VUI pillar (IDs 1–14).
-        Use the pillar definitions below to ground each card in the correct domain.
+        return f"""
+        You are the Africa Health Intelligence Platform (AHIP) live pillar intelligence engine.
+
+        Produce a LIVE Africa-focused snapshot: exactly ONE card per active AHIP pillar.
+        Use the pillar definitions below to ground each card in the correct health domain.
 
         ==================================================
-        VUI PILLAR CATALOG (ALL 14 — MANDATORY COVERAGE)
+        AHIP PILLAR CATALOG (ALL {pillar_count} — MANDATORY COVERAGE)
         ==================================================
         {catalog}
 
         ==================================================
         MANDATORY: LIVE WEB SEARCH
         ==================================================
-        Before writing JSON, search credible global news for each pillar domain.
-        For each pillar, find the most relevant global signal from the LAST 48 HOURS.
-        Older context only if an actively developing trend requires brief background
-        (same rules as VUI live country feed).
+        Before writing JSON, search credible African and global health news for each pillar domain.
+        For each pillar, find the most relevant signal from the LAST 48 HOURS affecting African
+        health systems. Older context only if an actively developing trend requires brief background.
 
         ==================================================
         sourceUrl RULES
         ==================================================
         - One HTTPS URL per pillar, copied exactly from search OR Google News search:
-          https://news.google.com/search?q=PILLAR+TOPIC+KEYWORDS&hl=en-US&gl=US&ceid=US:en
-        - NEVER fabricate article slugs on Reuters, BBC, AP, etc.
+          https://news.google.com/search?q=PILLAR+TOPIC+KEYWORDS+AFRICA+HEALTH&hl=en-US&gl=US&ceid=US:en
+        - NEVER fabricate article slugs on Reuters, BBC, AP, WHO, Africa CDC, etc.
 
         ==================================================
         OUTPUT RULES
         ==================================================
-        - Return EXACTLY 14 pillar objects (pillarId 1 through 14, each once).
+        - Return EXACTLY {pillar_count} pillar objects (pillarId {id_range}, each once).
         - title: max 55 characters — headline-style.
-        - summary: max 100 characters — one clear global signal for this pillar.
+        - summary: max 100 characters — one clear health signal for this pillar.
         - type: "risk" or "trend" (lowercase).
         - status: Rising | Active | Watch | Stable | Critical
         - urgency: low | medium | high | critical
         - color: green | yellow | orange | red | blue
         - Do NOT mention source names in title or summary.
-        - headline/subHeadline: live 48-hour framing.
+        - headline/subHeadline: live 48-hour framing for African health intelligence.
         - updatedAt: current UTC ISO-8601.
 
 
@@ -564,17 +302,17 @@ class PillarPrompts:
         {{
             "updatedAt": "2026-05-25T12:00:00Z",
             "headline": "Live Pillar Signals",
-            "subHeadline": "Global peace-enabler pillar watch from the last 48 hours.",
+            "subHeadline": "African health intelligence pillar watch from the last 48 hours.",
             "pillars": [
                 {{
-                    "pillarId": 1,
+                    "pillarId": {example_id},
                     "type": "risk",
                     "title": "Short headline",
-                    "summary": "One sentence global signal for this pillar domain.",
+                    "summary": "One sentence health signal for this pillar domain.",
                     "status": "Watch",
                     "urgency": "medium",
                     "color": "yellow",
-                    "sourceUrl": "https://news.google.com/search?q=historical+memory+reconciliation&hl=en-US&gl=US&ceid=US:en"
+                    "sourceUrl": "https://news.google.com/search?q={example_query}+africa+health&hl=en-US&gl=US&ceid=US:en"
                 }}
             ]
         }}

@@ -27,13 +27,13 @@ class Settings:
     # ---------------------------
     DOTNET_API_URL: str = os.getenv("DOTNET_API_URL", "https://api.veridianurbansystems.com")
     
-    Application_Auth_API_KEY: str= os.getenv("Application_Auth_API_KEY", "v1-abac4b8a0947535005d4595b2c05fce0b3ae9ab2872451d3d259451f36e03bd2")
+    Application_Auth_API_KEY: str= os.getenv("Application_Auth_API_KEY", "v1-abac4b8a0947535005d4595b2c05fce0b3ae9ab2872451d3d259451f36e03bg3")
 
     # ---------------------------
     # Database Configuration
     # ---------------------------
-    DB_SERVER: str = os.getenv("DB_SERVER", "DESKTOP-I0TTFPS")
-    DB_NAME: str = os.getenv("DB_NAME", "AssessmentDB_new")
+    DB_SERVER: str = os.getenv("DB_SERVER", "DESKTOP-I0TTFPS\SQLEXPRESS")
+    DB_NAME: str = os.getenv("DB_NAME", "HealthIntelligenceDB")
     DB_USE_WINDOWS_AUTH: bool = os.getenv("DB_USE_WINDOWS_AUTH", "True").lower() == "true"
     DB_USERNAME: str = os.getenv("DB_USERNAME", "")
     DB_PASSWORD: str = os.getenv("DB_PASSWORD", "")

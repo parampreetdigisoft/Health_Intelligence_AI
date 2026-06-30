@@ -1,5 +1,5 @@
 """
-    VUI LLM Base Service
+    PEM LLM Base Service
     --------------------
     Injectable, stateful wrapper around the LLM factory.
 
@@ -69,7 +69,7 @@ class LLMBaseService:
                 self._llm = llm_factory.create_llm()
                 self._initialized = True
                 logger.info(
-                    "LLMBaseService initialized with provider: %s",
+                    "✅ LLMBaseService initialized with provider: %s",
                     settings.LLM_PROVIDER,
                 )
                 return

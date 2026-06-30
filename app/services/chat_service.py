@@ -1,36 +1,28 @@
 # =========================================================================== #
-#  chat_service.py  (refactored)                                         #
+#  chat_service.py  (refactored)                                              #
 # =========================================================================== #
 
-from datetime import datetime, timezone
+import json
 import logging
 import re
-from typing import List, Dict, Any, Optional
-
+from typing import Any, Dict, List, Optional
+from urllib.parse import urlparse
+from datetime import datetime, timezone
 from pydantic import ValidationError
-from requests.compat import urlparse
-from app.services.common.llm_base_service import LLMBaseService
-from app.services.common.city_prompt import VerdianPromptTemplates
-from app.services.common.pillar_prompts import PillarPrompts
-from app.services.common.url_verifier import ensure_live_source_url
-from app.services.common.url_verifier import ensure_live_source_url_pillars 
 from app.services.core.repository import DatabaseRepository
 from app.services.rag_query_service import rag_query_service
-from app.view_models.PillarLiveSignalsResult import PillarLiveSignalsResult
+from app.services.common.llm_base_service import LLMBaseService
+from app.services.common import json_response_parser as jrp
+from app.services.common.pillar_prompts import AHIPPillarPrompts
 from app.view_models.EmergingTrendsResult import EmergingTrendsResult
-
+from app.view_models.PillarLiveSignalsResult import PillarLiveSignalsResult
+from app.services.common.url_verifier import ensure_live_source_url
 logger = logging.getLogger(__name__)
-
 CHROMA_PATH = "./chroma_store"
 
 
 class ChatService:
-    """
-    Hybrid RAG service: LLM-routed TOC selection + ChromaDB vector retrieval.
 
-    LLM mechanics live in LLMBaseService (injected).
-    Prompt text lives in VerdianPromptTemplates.
-    """
 
     def __init__(self) -> None:
         self._db = DatabaseRepository()
@@ -44,9 +36,9 @@ class ChatService:
     #  Public Methods                                                    #
     # ------------------------------------------------------------------ #
 
-    async def answer_city_question (
+    async def answer_country_question (
         self,
-        city_id: int,
+        country_id: int,
         questionText: str,
         historyText: Optional[str] = None,
         faqid : Optional[int] = None,
@@ -54,7 +46,7 @@ class ChatService:
     ) -> str:
         year = datetime.now().year      
 
-        ai_city_context = await self._db.get_ai_city_context(city_id, year,pillar_id)
+        ai_country_context = await self._db.get_ai_country_context(country_id, year,pillar_id)
 
         if faqid is None :
             faqs = await self._db.get_FAQ_context()
@@ -62,18 +54,18 @@ class ChatService:
 
             if len(relevant_faq_ids)>0:
                 relevant_faq_ids = relevant_faq_ids[: 3 if historyText == None else 2]
-                ai_context = await self._db.GetLocalContextDataForLLM(relevant_faq_ids,city_id,pillar_id)
+                ai_context = await self._db.GetLocalContextDataForLLM(relevant_faq_ids,country_id,pillar_id)
             else:
-                ai_context = await rag_query_service.get_city_document_context(city_id,questionText, pillar_id)
+                ai_context = await rag_query_service.get_country_document_context(country_id,questionText, pillar_id)
         else:
-             ai_context = await self._db.GetLocalContextDataForLLM([faqid],city_id,pillar_id)
+            ai_context = await self._db.GetLocalContextDataForLLM([faqid],country_id,pillar_id)
             
         if len(ai_context) < 1:
-            ai_context = "\n".join(f"{key}: {value}" for key, value in ai_city_context.items())
-        pillar_name =ai_city_context["PillarName"]
-        cityName =ai_city_context["CityName"]
+            ai_context = "\n".join(f"{key}: {value}" for key, value in ai_country_context.items())
+        pillar_name =ai_country_context["PillarName"]
+        countryName =ai_country_context["CountryName"]
 
-        answer = await rag_query_service.send_city_question_to_llm(questionText,ai_context,cityName,pillar_name,historyText)
+        answer = await rag_query_service.send_question_to_llm(questionText,ai_context,countryName,pillar_name,historyText)
 
         return answer
     
@@ -97,42 +89,96 @@ class ChatService:
         else:
             ai_context = await rag_query_service.get_global_document_context(questionText)
 
-        cityName="global for all cities"
+        countryName="global for all countries"
         pillar_name=""            
 
-        answer = await rag_query_service.send_question_to_llm(questionText, ai_context, cityName, pillar_name, historyText)
+        answer = await rag_query_service.send_question_to_llm(questionText, ai_context, countryName, pillar_name, historyText)
 
         return answer
-    # ============================================================
-# CHAT SERVICE
-# ============================================================
 
-    async def answer_city_executive_slides( self, city_id: int) -> Dict[str, Any]:
+    
+    async def answer_crossComparision(
+        self,
+        questionText: str,
+        countryIDs: list[int],
+        historyText: Optional[str] = None,
+    ) -> str:
+
+        year = datetime.now().year
+
+        countries = []
+
+        if len(countryIDs) > 0:
+            query = f"""
+                SELECT CountryName, Continent
+                FROM Countries
+                WHERE CountryID IN ({",".join(map(str, countryIDs))})
+            """
+
+            countries = await self._db.engine.fetch_dicts_async(query)
+
+        relevant_faq_ids = []
+
+        if len(countryIDs) == 0:
+            faqs = await self._db.get_FAQ_context(True)
+            relevant_faq_ids = await rag_query_service.get_related_FAQ_IDs(
+                questionText,
+                faqs
+            )
+        else:
+            relevant_faq_ids = countryIDs
+
+        if len(relevant_faq_ids) > 0:
+            ai_context = await self._db.GetCrossComparisionLocalContextDataForLLM(
+                relevant_faq_ids
+            )
+        else:
+            ai_context = await rag_query_service.get_global_document_context(
+                questionText
+            )
+
+        countryName = ", ".join(
+            [country["CountryName"] for country in countries]
+        )
+
+        pillar_name = "Get pillars from provided context"
+
+        answer = await rag_query_service.send_question_to_llm(
+            questionText,
+            ai_context,
+            countryName,
+            pillar_name,
+            historyText
+        )
+
+        return answer
+    
+
+    async def answer_Country_executive_slides( self, country_id: int) -> Dict[str, Any]:
         try:
             year = datetime.now().year
 
-            ai_city = await self._db.get_ai_city_context(city_id, year)
+            ai_country = await self._db.get_ai_country_context(country_id, year)
 
-
-            if not ai_city:
+            if not ai_country:
                 return {
                     "success": False,
-                    "message": "city context not found"
+                    "message": "country context not found"
                 }
 
-            city_name = ai_city["CityName"]
+            country_name = ai_country["CountryName"]
 
-            ai_city_context = "\n".join(
+            ai_country_context = "\n".join(
                 f"{key}: {value}"
-                for key, value in ai_city.items()
+                for key, value in ai_country.items()
             )
 
-            all_pillar_contexts = PillarPrompts.get_all_pillar_names()
+            pillars = await self._db.get_active_pillars_map()
+            all_pillar_contexts = AHIPPillarPrompts.get_all_pillar_names(pillars)
 
-            ai_result  = await rag_query_service.city_executive_slides(
-                city_name=city_name,
-                country=ai_city["Country"],
-                ai_city_context=ai_city_context,
+            ai_result  = await rag_query_service.country_executive_slides(
+                country_name=country_name,
+                ai_country_context=ai_country_context,
                 allPillarContexts=all_pillar_contexts,
                 year=year
             )
@@ -146,8 +192,8 @@ class ChatService:
             data = ai_result["data"]
 
             result = {
-                "cityId": city_id,
-                "cityName": data.get("cityName"),
+                "countryId": country_id,
+                "countryName": data.get("countryName"),
 
                 "recentPerformance": {
                     "trend": data["recentPerformance"]["trend"],
@@ -168,80 +214,25 @@ class ChatService:
         except Exception as exc:
 
             logger.exception(
-                "answer_city_executive_slides_question failed"
+                "answer_country_executive_slides_question failed"
             )
 
             return {
                 "success": False,
                 "error": str(exc)
             }
-        
-    async def answer_crossComparision(
-        self,
-        questionText: str,
-        cityIDs: list[int],
-        historyText: Optional[str] = None,
-    ) -> str:
 
-        year = datetime.now().year
 
-        cities = []
-
-        if len(cityIDs) > 0:
-            query = f"""
-                SELECT CityName, Country
-                FROM Cities
-                WHERE CityID IN ({",".join(map(str, cityIDs))})
-            """
-
-            cities = await self._db.engine.fetch_dicts_async(query)
-
-        relevant_faq_ids = []
-
-        if len(cityIDs) == 0:
-            faqs = await self._db.get_FAQ_context(True)
-            relevant_faq_ids = await rag_query_service.get_related_FAQ_IDs(
-                questionText,
-                faqs
-            )
-        else:
-            relevant_faq_ids = cityIDs
-
-        if len(relevant_faq_ids) > 0:
-            ai_context = await self._db.GetCrossComparisionLocalContextDataForLLM(
-                relevant_faq_ids
-            )
-        else:
-            ai_context = await rag_query_service.get_global_document_context(
-                questionText
-            )
-
-        cityName = ", ".join(
-            [city["CityName"] for city in cities]
-        )
-
-        pillar_name = "Get pillars from provided context"
-
-        answer = await rag_query_service.send_question_to_llm(
-            questionText,
-            ai_context,
-            cityName,
-            pillar_name,
-            historyText
-        )
-
-        return answer
-    
     async def get_emerging_trends_and_issues(
         self,
-        city_count: int = 8,
+        country_count: int = 8,
         query_variant: Optional[int] = None,
     ) -> Dict[str, Any]:
         try:
-            max_records = max(1, min(250, city_count))
+            max_records = max(1, min(250, country_count))
 
             ai_result = await rag_query_service.emerging_trends_and_issues(
-                city_count=max_records,
+                country_count=max_records,
                 query_variant=query_variant,
             )
 
@@ -278,6 +269,7 @@ class ChatService:
                 "message": str(exc),
             }
 
+
     @staticmethod
     def _normalize_emerging_trends_payload(data: Dict[str, Any]) -> Dict[str, Any]:
         category_map = {
@@ -310,10 +302,10 @@ class ChatService:
             "health": "health",
         }
 
-        cities_raw = data.get("cities") or []
-        normalized_cities: List[Dict[str, Any]] = []
+        countries_raw = data.get("countries") or []
+        normalized_countries: List[Dict[str, Any]] = []
 
-        for item in cities_raw:
+        for item in countries_raw:
             if not isinstance(item, dict):
                 continue
 
@@ -355,11 +347,10 @@ class ChatService:
             )
             summary = ChatService._strip_source_mentions(summary)
 
-            normalized_cities.append(
+            normalized_countries.append(
                 {
-                    "city": str(item.get("city", "")).strip(),
-                    "cityCode": str(item.get("cityCode", "")).strip().upper()[:2],
-                    "country": str(item.get("country", "")).strip(), 
+                    "country": str(item.get("country", "")).strip(),
+                    "countryCode": str(item.get("countryCode", "")).strip().upper()[:2],
                     "region": str(item.get("region", "")).strip(),
                     "type": card_type if card_type in ("risk", "trend") else "risk",
                     "title": title,
@@ -374,8 +365,8 @@ class ChatService:
                 }
             )
 
-        if not normalized_cities:
-            raise ValueError("Insufficient city cards in LLM response")
+        if not normalized_countries:
+            raise ValueError("Insufficient country cards in LLM response")
 
         updated_at = data.get("updatedAt")
         if not updated_at:
@@ -390,8 +381,8 @@ class ChatService:
                     "Live global signals from the last 48 hours across governance, security, economy, and society.",
                 )
             ).strip(),
-            "cities": normalized_cities,
-        } 
+            "countries": normalized_countries,
+        }
 
     @staticmethod
     def _normalize_source_url(item: Dict[str, Any]) -> str:
@@ -417,11 +408,18 @@ class ChatService:
             text.strip(),
             flags=re.IGNORECASE,
         ).strip()
-    
+
 
     async def get_pillar_live_signals(self) -> Dict[str, Any]:
         try:
-            ai_result = await rag_query_service.pillar_live_signals()
+            pillars = await self._db.get_active_pillars_map()
+            if not pillars:
+                return {
+                    "success": False,
+                    "message": "No active pillars configured",
+                }
+
+            ai_result = await rag_query_service.pillar_live_signals(pillars)
 
             if not ai_result.get("success"):
                 return {
@@ -429,8 +427,10 @@ class ChatService:
                     "message": "Failed to generate pillar live signals",
                 }
 
-            normalized = self._normalize_pillar_live_signals_payload(ai_result["data"])
-            normalized = await self._verify_pillar_live_signals_urls(normalized)
+            normalized = self._normalize_pillar_live_signals_payload(
+                ai_result["data"], pillars
+            )
+            normalized = await self._verify_pillar_live_signals_urls(normalized, pillars)
             validated = PillarLiveSignalsResult.model_validate(normalized)
 
             return {
@@ -458,14 +458,20 @@ class ChatService:
             }
 
     @staticmethod
-    def _normalize_pillar_live_signals_payload(data: Dict[str, Any]) -> Dict[str, Any]:
+    def _normalize_pillar_live_signals_payload(
+        data: Dict[str, Any],
+        pillars: Dict[int, Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        expected_ids = set(pillars.keys())
+        expected_count = len(expected_ids)
         status_map = {
             "rising": "Rising",
             "active": "Active",
             "watch": "Watch",
             "stable": "Stable",
             "critical": "Critical",
-        }       
+        }
+
         by_id: Dict[int, Dict[str, Any]] = {}
 
         for item in data.get("pillars") or []:
@@ -477,7 +483,7 @@ class ChatService:
             except (TypeError, ValueError):
                 continue
 
-            if pillar_id < 1 or pillar_id > 14:
+            if pillar_id not in expected_ids:
                 continue
 
             status = str(item.get("status", "Watch")).strip()
@@ -509,9 +515,9 @@ class ChatService:
                 "sourceUrl": source_url,
             }
 
-        if len(by_id) < 14:
+        if len(by_id) < expected_count:
             raise ValueError(
-                f"Expected 14 pillar cards, received {len(by_id)} valid entries"
+                f"Expected {expected_count} pillar cards, received {len(by_id)} valid entries"
             )
 
         pillars = [by_id[pid] for pid in sorted(by_id.keys())]
@@ -526,15 +532,19 @@ class ChatService:
             "subHeadline": str(
                 data.get(
                     "subHeadline",
-                    "Global peace-enabler pillar watch from the last 48 hours.",
+                    "African health intelligence pillar watch from the last 48 hours.",
                 )
             ).strip(),
             "pillars": pillars,
         }
 
     @staticmethod
-    async def _verify_pillar_live_signals_urls(data: Dict[str, Any]) -> Dict[str, Any]:
-        pillar_names = PillarPrompts.get_all_pillar_names()
+    async def _verify_pillar_live_signals_urls(
+        data: Dict[str, Any],
+        pillars: Dict[int, Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        pillar_names = AHIPPillarPrompts.get_all_pillar_names(pillars)
+        expected_count = len(pillars)
         verified: List[Dict[str, Any]] = []
 
         for item in data.get("pillars") or []:
@@ -546,10 +556,10 @@ class ChatService:
             title = str(item.get("title", "")).strip()
             url = str(item.get("sourceUrl", "")).strip()
 
-            item["sourceUrl"] = await ensure_live_source_url_pillars(url, pillar_name, title)
+            item["sourceUrl"] = await ensure_live_source_url(url, pillar_name, title)
             verified.append(item)
 
-        if len(verified) < 14:
+        if len(verified) < expected_count:
             raise ValueError("Insufficient pillar cards after URL verification")
 
         data["pillars"] = verified

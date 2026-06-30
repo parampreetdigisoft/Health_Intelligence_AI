@@ -20,11 +20,9 @@ _DEFAULT_HEADERS = {
 }
 
 
-def build_google_news_search_url(query: str) -> str:
+def build_google_news_search_url(country: str, title: str) -> str:
     """Public Google News search — stable fallback when article URLs are unavailable."""
-    
-    query = quote_plus(query.strip())
-
+    query = quote_plus(f"{country} {title}".strip())
     return (
         f"https://news.google.com/search?q={query}"
         "&hl=en-US&gl=US&ceid=US:en"
@@ -72,33 +70,7 @@ async def is_url_live(url: str) -> bool:
 
 async def ensure_live_source_url(
     url: str,
-    city: str,
     country: str,
-    title: str,
-) -> str:
-    """
-    Keep the URL if it loads; otherwise return a Google News search fallback.
-    """
-
-    if await is_url_live(url):
-        return url
-
-    search_query = f"{city} {country} {title}".strip()
-    fallback = build_google_news_search_url(search_query)
-
-    logger.warning(
-        "Replacing dead source URL for %s, %s: %s -> %s",
-        city,
-        country,
-        url,
-        fallback,
-    )
-
-    return fallback
-
-async def ensure_live_source_url_pillars(
-    url: str,
-    city: str,
     title: str,
 ) -> str:
     """
@@ -107,19 +79,11 @@ async def ensure_live_source_url_pillars(
     if await is_url_live(url):
         return url
 
-    fallback = build_google_news_search_url_pillars(city, title)
+    fallback = build_google_news_search_url(country, title)
     logger.warning(
         "Replacing dead source URL for %s: %s -> %s",
-        city,
+        country,
         url,
         fallback,
     )
     return fallback
-
-def build_google_news_search_url_pillars(city: str, title: str) -> str:
-    """Public Google News search — stable fallback when article URLs are unavailable."""
-    query = quote_plus(f"{city} {title}".strip())
-    return (
-        f"https://news.google.com/search?q={query}"
-        "&hl=en-US&gl=US&ceid=US:en"
-    )

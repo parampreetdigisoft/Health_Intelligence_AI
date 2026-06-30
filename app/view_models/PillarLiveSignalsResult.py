@@ -11,7 +11,7 @@ PillarSignalColor = Literal["green", "yellow", "orange", "red", "blue"]
 
 
 class PillarLiveSignalCard(BaseModel):
-    pillarId: int = Field(..., ge=1, le=23)
+    pillarId: int = Field(..., ge=1)
     type: PillarSignalType
     title: str = Field(..., min_length=3, max_length=55)
     summary: str = Field(..., min_length=10, max_length=100)
@@ -44,7 +44,7 @@ class PillarLiveSignalsResult(BaseModel):
     updatedAt: str
     headline: str = Field(..., min_length=3, max_length=120)
     subHeadline: str = Field(..., min_length=10, max_length=200)
-    pillars: List[PillarLiveSignalCard] = Field(..., min_length=14, max_length=14)
+    pillars: List[PillarLiveSignalCard] = Field(..., min_length=1)
 
     @field_validator("updatedAt")
     @classmethod

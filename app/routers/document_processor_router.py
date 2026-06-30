@@ -26,8 +26,8 @@ async def run_analysis_task(task_name: str, coro):
         logger.error(error_msg, exc_info=True)
 
 
-@router.post("/process-document/{city_doc_id}", response_model = AnalysisResponse)
-async def process_document(city_doc_id:int):
+@router.post("/process-document/{country_doc_id}", response_model = AnalysisResponse)
+async def process_document(country_doc_id:int):
     """
     Read the document by it's id and save chunk in relation db and vector db
     Returns immediately while process document runs in background
@@ -36,8 +36,8 @@ async def process_document(city_doc_id:int):
         # Start analysis in background
         asyncio.create_task(
             run_analysis_task(
-                "process-document-by-city-documentid",
-                read_process_document.process_document(city_doc_id)
+                "process-document-by-country-documentid",
+                read_process_document.process_document(country_doc_id)
             )
         )
         
@@ -47,26 +47,25 @@ async def process_document(city_doc_id:int):
         )
             
     except Exception as e:
-        error_msg = f"Error process-document_{city_doc_id}: {str(e)}"
+        error_msg = f"Error process-document_{country_doc_id}: {str(e)}"
         logger.error(error_msg, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/delete_document/{city_id}/{city_doc_id}", response_model=AnalysisResponse)
-async def delete_document(city_id:int, city_doc_id:int):
+
+@router.post("/delete-document/{country_doc_id}", response_model=AnalysisResponse)
+async def delete_document(country_doc_id:int):
     """
     Read the document by it's id and save chunk in relation db and vector db    
     Returns immediately while process document runs in background
     """
     try:
-
-        await read_process_document.delete_document(city_id, city_doc_id)
-        
+        await read_process_document.delete_document(country_doc_id)        
         return AnalysisResponse(
             success=True,
-            message="Deletion document started successfully. Processing in background.",
+            message="deletion document started successfully. Processing in background.",
         )
             
     except Exception as e:
-        error_msg = f"Error delete_document_{city_doc_id}: {str(e)}"
+        error_msg = f"Error delete_document_{country_doc_id}: {str(e)}"
         logger.error(error_msg, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

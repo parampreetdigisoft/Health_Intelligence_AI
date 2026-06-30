@@ -1,10 +1,11 @@
 """
-Main FastAPI Application with Database Logging and API Key Authentication
+Main FastAPI Application
 """
 
 import logging
 from app.services.core.logging_config import setup_logging
 
+# Must be called before anything else creates a logger
 setup_logging()
 
 from fastapi import FastAPI, Request
@@ -13,77 +14,62 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.openapi.utils import get_openapi
 from fastapi.openapi.docs import get_swagger_ui_html
+
 from app.config import settings
-from app.routers.chat_router import router as chat_router
-from app.routers.document_processor_router import router as document_processor_router
-from app.routers.score_analysis_router import router as score_analysis_router
 from app.services.core.repository import db_repository
 from app.middleware.auth_middleware import APIKeyMiddleware
-
-# Import routers
+from app.routers.document_processor_router import router as document_processor_router
 from app.routers.score_analysis_router import router as score_analysis_router
+from app.routers.chat_router import router as chat_router
 
-
-import logging
-
+# Every module gets its own logger — no handler setup needed here
 logger = logging.getLogger(__name__)
 
-# Define API Key security scheme
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
-
-# Create FastAPI app
 app = FastAPI(
-    title="Assessment AI Service",
+    title="PEM AI Service",
     description="Analysis API. **Authentication Required**: Add your API key using the 'Authorize' button below.",
     version="1.0.0",
-    docs_url=None,  # Disable default docs to customize
-    redoc_url=None,  # Disable default redoc to customize
+    docs_url=None,
+    redoc_url=None,
 )
 
-# CORS middleware (add before auth middleware)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  #Configure appropriately for production
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["*"]
 )
-
-# Add API Key Authentication Middleware
 app.add_middleware(APIKeyMiddleware)
 
 
-# Custom OpenAPI schema with API Key security
 def custom_openapi():
     if app.openapi_schema:
         return app.openapi_schema
-    
+
     openapi_schema = get_openapi(
-        title="Assessment AI Service",
+        title="PEM AI Service",
         version="1.0.0",
         description="Analysis API with API Key Authentication",
         routes=app.routes,
     )
-    
-    # Add security scheme
     openapi_schema["components"]["securitySchemes"] = {
         "APIKeyHeader": {
             "type": "apiKey",
             "in": "header",
             "name": "X-API-Key",
-            "description": "Enter your API key"
+            "description": "Enter your API key",
         }
     }
-    
-    # Apply security globally to all endpoints except excluded ones
     excluded_paths = ["/health", "/docs", "/redoc", "/openapi.json"]
     for path, path_item in openapi_schema["paths"].items():
         if path not in excluded_paths:
             for method in path_item.values():
                 if isinstance(method, dict) and "security" not in method:
                     method["security"] = [{"APIKeyHeader": []}]
-    
+
     app.openapi_schema = openapi_schema
     return app.openapi_schema
 
@@ -91,79 +77,58 @@ def custom_openapi():
 app.openapi = custom_openapi
 
 
-# Custom Swagger UI with persistence
 @app.get("/docs", include_in_schema=False)
 async def custom_swagger_ui_html():
     return get_swagger_ui_html(
         openapi_url="/openapi.json",
-        title="Assessment AI Service - Swagger UI",
+        title="PEM AI Service - Swagger UI",
         swagger_js_url="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.9.0/swagger-ui-bundle.js",
         swagger_css_url="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.9.0/swagger-ui.css",
         swagger_ui_parameters={
-            "persistAuthorization": True,  # Remember API key in browser
+            "persistAuthorization": True,
             "displayRequestDuration": True,
             "filter": True,
-        }
+        },
     )
 
 
-# Custom ReDoc
 @app.get("/redoc", include_in_schema=False)
 async def redoc_html():
     from fastapi.openapi.docs import get_redoc_html
-    return get_redoc_html(
-        openapi_url="/openapi.json",
-        title="Assessment AI Service - ReDoc"
-    )
+    return get_redoc_html(openapi_url="/openapi.json", title="Assessment AI Service - ReDoc")
 
 
-# Global exception handler
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    """
-    Catch all unhandled exceptions and log them to database
-    """
+    """Unhandled exceptions: logged to file (via NSSM) AND to DB (via handler)."""
     logger.error(
         f"Unhandled exception at {request.url.path}",
         exc_info=exc,
         extra={
             "method": request.method,
             "url": str(request.url),
-            "client": request.client.host if request.client else "unknown"
-        }
+            "client": request.client.host if request.client else "unknown",
+        },
     )
-    
-    
     return JSONResponse(
         status_code=500,
         content={
             "error": "Internal server error",
             "message": str(exc),
-            "path": request.url.path
-        }
+            "path": request.url.path,
+        },
     )
 
 
 @app.on_event("startup")
 async def startup_event():
-    """Initialize services on startup"""
     logger.info("Starting AI Microservice...")
-    
     try:
+        if not db_repository.engine.test_connection():
+            logger.warning("Database connection failed — some features may not work")
 
-        # Test database connection
-        logger.info("Testing database connection...")
-        db_connected = db_repository.test_connection()
-        
-        if not db_connected:
-            logger.warning("Database connection failed - some features may not work")
-
-        logger.info(" All services initialized successfully!")
-        logger.info(" API Key authentication is enabled")
-        logger.info(
-            f"API docs at http://{settings.API_HOST}:{settings.API_PORT}/docs"
-        )
-
+        logger.info("All services initialized successfully!")
+        logger.info(f"API docs at http://{settings.API_HOST}:{settings.API_PORT}/docs")
     except Exception as e:
         logger.error(f"Startup failed: {e}", exc_info=True)
         raise
@@ -171,36 +136,27 @@ async def startup_event():
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    """Cleanup on shutdown"""
     logger.info("Shutting down AI Microservice...")
 
 
-# Include routers
 app.include_router(chat_router)
 app.include_router(document_processor_router)
 app.include_router(score_analysis_router)
 
 
-
-# Root Endpoint (requires API key)
 @app.get("/", summary="API Root", tags=["General"])
 async def root():
     return {
-        "service": "Assessment AI Service",
+        "service": "PEM AI Service",
         "status": "running",
         "model_in_use": settings.LLM_PROVIDER,
         "routes": {
             "health_check": "/health",
             "documentation": f"http://{settings.API_HOST}:{settings.API_PORT}/docs",
-            "openapi_json": f"http://{settings.API_HOST}/openapi.json",
         },
     }
 
 
-# Health Check Endpoint (no API key required)
 @app.get("/health", summary="Health Check", tags=["Health"])
 async def health_check():
-    return {
-        "status": "healthy",
-        "database": settings.DB_NAME,
-    }
+    return {"status": "healthy", "database": settings.DB_NAME}
