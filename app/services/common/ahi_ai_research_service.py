@@ -1,11 +1,11 @@
 """
-    pem_ai_research_service.py  (refactored)
+    ahi_ai_research_service.py  (refactored)
     -----------------------------------------
     Orchestrates question / pillar / country-level AI research.
 
     Depends on:
         llm_base_service.LLMBaseService       — all LLM mechanics
-        prompt_templates.PEMPromptTemplates   — all prompt text
+        prompt_templates.AHIPromptTemplates   — all prompt text
         json_response_parser                  — JSON cleaning, validation, mapping
 """
 
@@ -15,14 +15,14 @@ from datetime import datetime
 from typing import Any, Dict, Optional
 from app.services.common.llm_base_service import LLMBaseService
 from app.services.common.pillar_prompts import AHIPPillarPrompts
-from app.services.common.country_prompt import PEMPromptTemplates
+from app.services.common.country_prompt import AHIPromptTemplates
 from app.services.common import json_response_parser as jrp
 from app.services.core.repository import db_repository
 logger = logging.getLogger(__name__)
 
 # --------------------------------------------------------------------------- #
 #  User message templates (kept here; only the system prompt lives in         #
-#  PEMPromptTemplates so service context stays visible)                       #
+#  AHIPromptTemplates so service context stays visible)                       #
 # --------------------------------------------------------------------------- #
 
 _QUESTION_USER_TMPL = """
@@ -52,12 +52,12 @@ _COUNTRY_USER_TMPL = """
 
 
 # =========================================================================== #
-class PEMResearchService:
+class AHIResearchService:
     """
     AI service that conducts independent research and evidence-based scoring.
 
     All LLM calls are delegated to LLMBaseService.
-    All prompt text comes from PEMPromptTemplates.
+    All prompt text comes from AHIPromptTemplates.
     All JSON parsing/mapping comes from json_response_parser.
     """
 
@@ -82,7 +82,7 @@ class PEMResearchService:
             year = year or datetime.now().year
             pillars = await db_repository.get_active_pillars_map()
             pillar_context = AHIPPillarPrompts.get_pillar_context(pillarID, pillars)
-            system_prompt = PEMPromptTemplates.question_system_prompt(pillar_context)
+            system_prompt = AHIPromptTemplates.question_system_prompt(pillar_context)
 
             label = f"question|{country_name}|pillar{pillarID}"
             raw = await self._llm_svc.invoke_chain(
@@ -119,7 +119,7 @@ class PEMResearchService:
             year = year or datetime.now().year
             pillars = await db_repository.get_active_pillars_map()
             pillar_context = AHIPPillarPrompts.get_pillar_context(pillarId, pillars)
-            system_prompt = PEMPromptTemplates.pillar_system_prompt(pillar_context)
+            system_prompt = AHIPromptTemplates.pillar_system_prompt(pillar_context)
 
             label = f"pillar|{country_name}|pillar{pillarId}"
             raw = await self._llm_svc.invoke_chain(
@@ -148,7 +148,7 @@ class PEMResearchService:
         continent: str,
         year: int = None,
     ) -> Dict[str, Any]:
-        """Produce a cross-pillar country-level peace assessment."""
+        """Produce a cross-pillar country-level Healthassessment."""
         try:
             year = year or datetime.now().year
             pillars = await db_repository.get_active_pillars_map()
@@ -156,7 +156,7 @@ class PEMResearchService:
             pillar_list_str = "\n".join(
                 f"{k}. {v}" for k, v in pillar_names.items()
             )
-            system_prompt = PEMPromptTemplates.country_system_prompt(
+            system_prompt = AHIPromptTemplates.country_system_prompt(
                 pillar_list_str=pillar_list_str
             )
 
@@ -189,7 +189,7 @@ class PEMResearchService:
         documentContext: Optional[str],
         year: int = None,
     ) -> Dict[str, Any]:
-        """Produce a cross-pillar country-level peace assessment."""
+        """Produce a cross-pillar country-level Healthassessment."""
         try:
             # Fix: Proper length check
             if not documentContext or len(documentContext) < 100:
@@ -199,11 +199,11 @@ class PEMResearchService:
                     f"{k}. {v}" for k, v in pillar_names.items()
                 )
 
-                system_prompt = PEMPromptTemplates.country_situation_awareness_system_prompt(
+                system_prompt = AHIPromptTemplates.country_situation_awareness_system_prompt(
                     pillar_list_str
                 )
             else:
-                system_prompt = PEMPromptTemplates.country_summery_system_prompt(
+                system_prompt = AHIPromptTemplates.country_summery_system_prompt(
                     publicContext=ai_country_context,
                     documentContext=documentContext
                 )
@@ -231,4 +231,4 @@ class PEMResearchService:
 
 
 # Module-level singleton — import and use this in routers / tasks.
-pem_ai_research_service = PEMResearchService()
+ahi_ai_research_service = AHIResearchService()

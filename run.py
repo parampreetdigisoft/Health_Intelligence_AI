@@ -7,7 +7,7 @@ import uvicorn
 from app.config import settings
 
 if __name__ == "__main__":
-    print("PEM AI Service Starting...")
+    print("AHI AI Service Starting...")
     print(f"API: http://{settings.API_HOST}:{settings.API_PORT}")
     print(f"Docs: http://{settings.API_HOST}:{settings.API_PORT}/docs")
     print(f"Health: http://{settings.API_HOST}:{settings.API_PORT}/health")

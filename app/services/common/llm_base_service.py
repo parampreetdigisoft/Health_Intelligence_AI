@@ -1,5 +1,5 @@
 """
-    PEM LLM Base Service
+    AHI LLM Base Service
     --------------------
     Injectable, stateful wrapper around the LLM factory.
 

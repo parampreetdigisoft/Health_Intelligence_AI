@@ -153,7 +153,7 @@ async def ask_Country_executive_slides(request: ChatCountryExecutiveSlidesReques
 @router.get(
     "/emerging-trends-and-issues",
     response_model=ChatEmergingTrendsResponse,
-    summary="Global emerging trends and issues feed",
+    summary="Africa health emerging trends and risks feed",
 )
 async def get_emerging_trends_and_issues(
     countryCount: int = Query(
@@ -166,15 +166,16 @@ async def get_emerging_trends_and_issues(
         default=None,
         ge=0,
         description=(
-            "GDELT keyword variant index (0–5). Omit to auto-rotate every 5 minutes. "
-            "Each variant uses a different 2–3 keyword OR group, or all six terms."
+            "GDELT health keyword variant index (0–7). Omit to auto-rotate every 5 minutes. "
+            "Each variant uses different Africa-scoped health risk keywords."
         ),
     ),
 ):
     """
-    Public homepage feed for emerging global risks and stability trends.
+    Public homepage feed for emerging African health risks and trends.
 
-    Returns structured country cards suitable for a public-facing UI.
+    Fetches GDELT articles (last 24h) filtered for Africa and health-related topics,
+    then returns structured country cards for the Health Intelligence UI.
     """
     try:
         response = await chat_service.get_emerging_trends_and_issues(

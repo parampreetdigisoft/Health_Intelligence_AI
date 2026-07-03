@@ -25,7 +25,7 @@ class Settings:
     # ---------------------------
     # .NET API Integration
     # ---------------------------
-    DOTNET_API_URL: str = os.getenv("DOTNET_API_URL", "https://api.veridianurbansystems.com")
+    DOTNET_API_URL: str = os.getenv("DOTNET_API_URL", "https://api.url.com")
     
     Application_Auth_API_KEY: str= os.getenv("Application_Auth_API_KEY", "v1-abac4b8a0947535005d4595b2c05fce0b3ae9ab2872451d3d259451f36e03bg3")
 

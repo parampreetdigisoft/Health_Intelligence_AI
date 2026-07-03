@@ -266,7 +266,8 @@ embeddings/
 config.inil
 secrets.json
 credentials.json
-*.pem
+*.AHI
+*.ahi
 *.key
 *.cert
 

@@ -2,7 +2,7 @@
 Score Analyzer Service
 ----------------------
 Orchestrates AI scoring for questions, pillars, and countries.
-Delegates all LLM calls to PEMResearchService.
+Delegates all LLM calls to AHIResearchService.
 Persists results via DatabaseRepository.
 """
 
@@ -12,7 +12,7 @@ from datetime import datetime
 from typing import Any, Optional
 logger = logging.getLogger(__name__)
 from app.services.core.repository import DatabaseRepository
-from app.services.common.pem_ai_research_service import PEMResearchService
+from app.services.common.ahi_ai_research_service import AHIResearchService
 from app.services.rag_query_service import rag_query_service
 #  To DB after every N records (currently 1 = immediate upsert).
 #  Increase for bulk jobs to reduce round-trips.
@@ -27,7 +27,7 @@ class ScoreAnalyzerService:
     Responsibilities
     ----------------
     - Fetch evaluation data from DB views
-    - Call PEMResearchService for AI scoring
+    - Call AHIResearchService for AI scoring
     - Build DB-ready records
     - Upsert results in configurable batches
     """
@@ -36,7 +36,7 @@ class ScoreAnalyzerService:
 
     def __init__(self) -> None:
         self._db = DatabaseRepository()
-        self._ai = PEMResearchService()
+        self._ai = AHIResearchService()
 
     # ------------------------------------------------------------------ #
     #  Safe type converters                                              #
@@ -327,7 +327,7 @@ class ScoreAnalyzerService:
         return True
 
     async def _analyze_country(self, country: Any, **_) -> bool:
-        """Score the overall country-level peace assessment."""
+        """Score the overall country-level Healthassessment."""
         df = await self._db.get_view_data(
             "vw_AiCountryEvaluations", f"countryId = {country.CountryID}"
         )
@@ -367,7 +367,7 @@ class ScoreAnalyzerService:
         return True
 
     async def immediateSituation(self, country_id: int, **_) -> bool:
-        """Score the overall country-level peace assessment."""
+        """Score the overall country-level Healthassessment."""
         year = datetime.now().year        
 
         ai_country= await self._db.get_ai_country_context(country_id, year)

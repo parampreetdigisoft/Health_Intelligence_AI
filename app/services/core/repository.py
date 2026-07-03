@@ -257,6 +257,16 @@ class DatabaseRepository:
         pillars = await self.get_active_pillars()
         return {int(p["PillarID"]): p for p in pillars}
 
+    async def get_active_countries(self) -> List[Dict[str, Any]]:
+        """Active countries for GDELT scope and emerging-trends context."""
+        query = """
+            SELECT CountryName, Region, CountryCode
+            FROM Countries
+            WHERE IsDeleted = 0
+            ORDER BY Region, CountryName
+        """
+        return await self.engine.fetch_dicts_async(query)
+
     async def get_ai_country_context(
     self,
         country_id: int,

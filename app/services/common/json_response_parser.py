@@ -1,5 +1,5 @@
 """
-    PEM JSON Response Parser
+    AHI JSON Response Parser
     ------------------------
     Handles:
       - Cleaning raw LLM output into valid JSON strings
@@ -360,11 +360,11 @@ def _require_fields(data: Dict, fields: list[str]) -> None:
 def _validate_ai_score(data: Dict) -> None:
     score = data.get("ai_score")
     if isinstance(score, (int, float)):
-        if not (0 <= float(score) <= 4):
+        if not (0 <= float(score) <= 100):
             raise ValueError(f"ai_score {score} is outside the valid range 0-4.")
-    elif score not in ("N/A", "Unknown"):
+    elif score not in ("N/A", "Unknown",None):
         raise ValueError(
-            f"ai_score must be a number 0-4, 'N/A', or 'Unknown'. Got: {score!r}"
+            f"ai_score must be a number 0-100, 'N/A', or 'Unknown'. Got: {score!r}"
         )
 
 

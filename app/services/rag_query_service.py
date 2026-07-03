@@ -10,7 +10,7 @@ Stage 1 — LLM-driven TOC routing  (which sections are relevant?)
 Stage 2 — ChromaDB vector search within those sections
 
 LLM calls are handled by LLMBaseService.
-All prompt text comes from PEMPromptTemplates.
+All prompt text comes from AHIPromptTemplates.
 """
 
 from datetime import datetime, timedelta, timezone
@@ -24,7 +24,7 @@ import httpx
 from chromadb.utils import embedding_functions
 from typing import List, Dict, Any, Optional
 from app.services.common.llm_base_service import LLMBaseService
-from app.services.common.country_prompt import PEMPromptTemplates
+from app.services.common.country_prompt import AHIPromptTemplates
 from app.services.common.gdelt_client import fetch_doc_articles
 from app.services.common.pillar_prompts import AHIPPillarPrompts
 from app.services.core.repository import DatabaseRepository
@@ -39,7 +39,7 @@ class RAGQueryService:
     Hybrid RAG service: LLM-routed TOC selection + ChromaDB vector retrieval.
 
     LLM mechanics live in LLMBaseService (injected).
-    Prompt text lives in PEMPromptTemplates.
+    Prompt text lives in AHIPromptTemplates.
     """
 
     def __init__(self) -> None:
@@ -150,11 +150,11 @@ class RAGQueryService:
             messages=[
                 {
                     "role": "system",
-                    "content": PEMPromptTemplates.chat_system_prompt(),
+                    "content": AHIPromptTemplates.chat_system_prompt(),
                 },
                 {
                     "role": "user",
-                    "content": PEMPromptTemplates.chat_answer_user_prompt(
+                    "content": AHIPromptTemplates.chat_answer_user_prompt(
                         ai_context, historyText, questionText, countryName, pillar_name
                     ),
                 },
@@ -178,11 +178,11 @@ class RAGQueryService:
             messages=[
                 {
                     "role": "system",
-                    "content": PEMPromptTemplates.chat_system_prompt(),
+                    "content": AHIPromptTemplates.chat_system_prompt(),
                 },
                 {
                     "role": "user",
-                    "content": PEMPromptTemplates.chat_answer_user_prompt(
+                    "content": AHIPromptTemplates.chat_answer_user_prompt(
                         ai_context, historyText, questionText, countryName, pillar_name
                     ),
                 },
@@ -251,7 +251,7 @@ class RAGQueryService:
             f"[{row['TOCID']}] (Level {row['SectionLevel']}) {row['SectionPath']}"
             for row in toc
         )
-        prompt = PEMPromptTemplates.get_relevant_Id_prompt(toc_text, question)
+        prompt = AHIPromptTemplates.get_relevant_Id_prompt(toc_text, question)
         raw = await self._llm_svc.invoke_raw(
             prompt, label=f"rag_routing|q={question[:40]}"
         )
@@ -339,7 +339,7 @@ class RAGQueryService:
             f"[{row['FAQID']}] (QuestionText {row['QuestionText']}) {row['Category']}"
             for row in toc
         )
-        prompt = PEMPromptTemplates.get_relevant_faqId_prompt(toc_text, question)
+        prompt = AHIPromptTemplates.get_relevant_faqId_prompt(toc_text, question)
         raw = await self._llm_svc.invoke_raw(
             prompt, label=f"rag_routing|q={question[:80]}"
         )
@@ -361,7 +361,7 @@ class RAGQueryService:
             # SYSTEM PROMPT
             # ---------------------------------------------------------
             system_prompt = (
-                PEMPromptTemplates.Country_executive_slides_prompt(
+                AHIPromptTemplates.Country_executive_slides_prompt(
                     publicContext=ai_country_context,
                     allPillarContexts=allPillarContexts
                 )
@@ -420,11 +420,16 @@ class RAGQueryService:
         Fetch GDELT articles (one variant per request, 5s throttle between calls).
         Tries at most two variants if the first returns no articles.
         """
-        variant_count = PEMPromptTemplates.gdelt_emerging_variant_count()
+        countries = await self._db.get_active_countries()
+        all_country_codes, region_groups = AHIPromptTemplates.build_gdelt_country_scope(
+            countries
+        )
+
+        variant_count = AHIPromptTemplates.gdelt_emerging_variant_count()
         start_idx = (
             query_variant
             if query_variant is not None
-            else PEMPromptTemplates.pick_gdelt_emerging_variant_index()
+            else AHIPromptTemplates.pick_gdelt_emerging_variant_index()
         ) % variant_count
 
         last_error: Optional[Exception] = None
@@ -432,8 +437,11 @@ class RAGQueryService:
 
         for attempt in range(max_variant_tries):
             idx = (start_idx + attempt) % variant_count
-            gdelt_url, _ = PEMPromptTemplates.emerging_trends_gdelt_url(
-                max_records, variant_index=idx
+            gdelt_url, _ = AHIPromptTemplates.emerging_trends_gdelt_url(
+                max_records,
+                all_country_codes,
+                region_groups,
+                variant_index=idx,
             )
             cache_key = f"emerging:{max_records}:{idx}"
 
@@ -466,7 +474,7 @@ class RAGQueryService:
             now_utc = datetime.now(timezone.utc)
 
             # ---------------------------------------------------------
-            # Fetch articles from GDELT (last 24h, English; rotated query)
+            # Fetch articles from GDELT (last 24h, English; Africa health rotated query)
             # ---------------------------------------------------------
             articles_raw = await self._fetch_gdelt_emerging_articles(
                 max_records, query_variant=query_variant
@@ -496,8 +504,8 @@ class RAGQueryService:
             if not articles:
                 raise ValueError("Insufficient usable GDELT articles")
 
-            system_prompt = PEMPromptTemplates.emerging_trend_risk_prompt()
-            user_template = PEMPromptTemplates.emerging_trends_and_issues_user_prompt()
+            system_prompt = AHIPromptTemplates.emerging_trend_risk_prompt()
+            user_template = AHIPromptTemplates.emerging_trends_and_issues_user_prompt()
 
             raw = await self._llm_svc.invoke_chain(
                 system_prompt=system_prompt,
