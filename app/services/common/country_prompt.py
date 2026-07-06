@@ -168,7 +168,7 @@ class AHIPromptTemplates:
             OUTPUT: Return ONLY this exact JSON object (no markdown, no extra text):
             {{
                 "ai_score": <0|25|50|75|100|null>,
-                "ai_progress": <0.00-100.00 or null if Unknown>,
+                "ai_progress": <0.00-100.00 or null if Unknown or N/A>,
                 "confidence_level": "<High|Medium|Low | (NA | UnKnown if ai_score is null)>",
                 "evidence_summary": "<150-200 words for a general reader. What does the evidence show for this pillar? Include both strengths and concerns. Plain language only — no internal protocol terms.>",
                 "four_layer_evidence": {{
