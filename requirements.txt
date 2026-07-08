@@ -28,7 +28,7 @@
 
 
 
-# C:\nssm\win64
+# cd C:\nssm\win64
 # $nssm = "C:\nssm-2.24\win64\nssm.exe"
 # $serviceName = "PeaceEnablers_AI_Service"
 # $pythonPath = "C:\inetpub\wwwroot\PeaceEnablers_AI_Service\.venv\Scripts\python.exe"
@@ -44,10 +44,10 @@
 
 # New-Item -ItemType Directory -Force "C:\inetpub\wwwroot\PeaceEnablers_AI_Service\logs"
 # If You Ever Need to Restart After Code Changes
-# $nssm = "C:\nssm-2.24\win64\nssm.exe"
+# $nssm = "C:\nssm\win64\nssm.exe"
 
 # # Restrart nssm
-# cd C:\nssm-2.24\win64
+# cd C:\nssm\win64
 # .\nssm.exe stop PeaceEnablers_AI_Service
 # .\nssm.exe start PeaceEnablers_AI_Service
 
