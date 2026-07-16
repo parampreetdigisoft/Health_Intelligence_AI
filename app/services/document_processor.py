@@ -3,9 +3,9 @@ import uuid
 import fitz          # PyMuPDF for PDF
 import docx          # python-docx for DOCX
 import chromadb
-from chromadb.utils import embedding_functions
 from typing import List, Dict, Any, Optional
 import logging
+from app.services.common.embedding import create_embedding_function
 from app.services.core.repository import DatabaseRepository
 
 CHROMA_PATH = "./chroma_store"
@@ -32,9 +32,7 @@ class DocumentProcessor:
             logger.error(f"ChromaDB initialization failed: {e}")
             raise
 
-        self.embed_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
-            model_name="all-MiniLM-L6-v2"
-        )
+        self.embed_fn = create_embedding_function()
         self.repository = DatabaseRepository()
 
     def get_or_create_collection(self,document_level: str, country_id: Optional[int]):

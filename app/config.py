@@ -79,6 +79,16 @@ class Settings:
     ANOMALY_THRESHOLD: int = 2
     
     # ---------------------------
+    # Embedding model (offline / local)
+    # ---------------------------
+    # Folder with a saved all-MiniLM-L6-v2 model (run scripts/download_embedding_model.py once).
+    # Override with EMBEDDING_MODEL_PATH in .env (absolute path recommended for NSSM services).
+    EMBEDDING_MODEL_PATH: str = os.getenv(
+        "EMBEDDING_MODEL_PATH",
+        str(Path(__file__).parent.parent / "models" / "all-MiniLM-L6-v2"),
+    )
+
+    # ---------------------------
     # General Paths
     # ---------------------------
     BASE_DIR: Path = Path(__file__).parent.parent

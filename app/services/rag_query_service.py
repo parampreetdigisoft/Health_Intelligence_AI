@@ -21,8 +21,8 @@ import chromadb
 import logging
 import json
 import httpx
-from chromadb.utils import embedding_functions
 from typing import List, Dict, Any, Optional
+from app.services.common.embedding import create_embedding_function
 from app.services.common.llm_base_service import LLMBaseService
 from app.services.common.country_prompt import AHIPromptTemplates
 from app.services.common.gdelt_client import fetch_doc_articles
@@ -58,9 +58,7 @@ class RAGQueryService:
             logger.error(f"ChromaDB initialization failed: {e}")
             raise
 
-        self.embed_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
-            model_name="all-MiniLM-L6-v2"
-        )
+        self.embed_fn = create_embedding_function()
         self._db = DatabaseRepository()
         # --- LLM (shared base service) ---
         self._llm_svc = LLMBaseService(max_retries=3, retry_delay=1.0)

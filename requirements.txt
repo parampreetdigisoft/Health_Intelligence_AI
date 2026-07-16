@@ -29,29 +29,30 @@
 
 
 # cd C:\nssm\win64
-# $nssm = "C:\nssm-2.24\win64\nssm.exe"
-# $serviceName = "PeaceEnablers_AI_Service"
-# $pythonPath = "C:\inetpub\wwwroot\PeaceEnablers_AI_Service\.venv\Scripts\python.exe"
-# $workDir = "C:\inetpub\wwwroot\PeaceEnablers_AI_Service"
-
+# $nssm = "C:\nssm\win64\nssm.exe"
+# $serviceName = "Health_Intelligence_AI"
+# $pythonPath = "C:\inetpub\wwwroot\Health_Intelligence_AI\.venv\Scripts\python.exe"
+# $workDir = "C:\inetpub\wwwroot\Health_Intelligence_AI"
 # & $nssm install $serviceName $pythonPath "run.py"
 # & $nssm set $serviceName AppDirectory $workDir
-# & $nssm set $serviceName AppStdout "C:\inetpub\wwwroot\PeaceEnablers_AI_Service\logs\service.log"
-# & $nssm set $serviceName AppStderr "C:\inetpub\wwwroot\PeaceEnablers_AI_Service\logs\error.log"
+# & $nssm set $serviceName AppStdout "C:\inetpub\wwwroot\Health_Intelligence_AI\logs\service.log"
+# & $nssm set $serviceName AppStderr "C:\inetpub\wwwroot\Health_Intelligence_AI\logs\error.log"
 # & $nssm set $serviceName Start SERVICE_AUTO_START
+# & $nssm start $serviceName
+# New-Item -ItemType Directory -Force "C:\inetpub\wwwroot\Health_Intelligence_AI\logs"
 
-#& $nssm start $serviceName
-
-# New-Item -ItemType Directory -Force "C:\inetpub\wwwroot\PeaceEnablers_AI_Service\logs"
-# If You Ever Need to Restart After Code Changes
-# $nssm = "C:\nssm\win64\nssm.exe"
+# db script for access 
+# CREATE LOGIN [NT AUTHORITY\SYSTEM] FROM WINDOWS;
+# CREATE USER [NT AUTHORITY\SYSTEM] FOR LOGIN [NT AUTHORITY\SYSTEM];
+# ALTER ROLE db_datareader ADD MEMBER [NT AUTHORITY\SYSTEM];
+# ALTER ROLE db_datawriter ADD MEMBER [NT AUTHORITY\SYSTEM];
+# GRANT EXECUTE TO [NT AUTHORITY\SYSTEM];
 
 # # Restrart nssm
 # cd C:\nssm\win64
-# .\nssm.exe stop PeaceEnablers_AI_Service
-# .\nssm.exe start PeaceEnablers_AI_Service
-
-# .\nssm.exe restart PeaceEnablers_AI_Service
+# .\nssm.exe stop Health_Intelligence_AI
+# .\nssm.exe start Health_Intelligence_AI
+# .\nssm.exe restart Health_Intelligence_AI
 
 
 
