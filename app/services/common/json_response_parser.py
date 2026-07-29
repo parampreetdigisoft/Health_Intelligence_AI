@@ -361,18 +361,18 @@ def _validate_ai_score(data: Dict) -> None:
     score = data.get("ai_score")
     if isinstance(score, (int, float)):
         if not (0 <= float(score) <= 100):
-            raise ValueError(f"ai_score {score} is outside the valid range 0-4.")
-    elif score not in ("N/A", "Unknown",None):
+            raise ValueError(f"ai_score {score} is outside the valid range 0-100.")
+    elif  score is not None:
         raise ValueError(
             f"ai_score must be a number 0-100, 'N/A', or 'Unknown'. Got: {score!r}"
         )
 
 
 def _validate_confidence(data: Dict) -> None:
-    valid = {"High", "Medium", "Low"}
+    valid = {"High", "Medium", "Low","N/A","NA", "Unknown"}
     if data.get("confidence_level") not in valid:
         logger.warning(
             "Invalid confidence_level '%s'. Defaulting to 'Medium'.",
             data.get("confidence_level"),
         )
-        data["confidence_level"] = "Medium"
+        data["confidence_level"] = "Unknown"

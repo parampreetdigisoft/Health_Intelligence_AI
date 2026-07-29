@@ -16,6 +16,8 @@ from app.services.common.ahi_ai_research_service import AHIResearchService
 from app.services.rag_query_service import rag_query_service
 #  To DB after every N records (currently 1 = immediate upsert).
 #  Increase for bulk jobs to reduce round-trips.
+from app.services.common.realtime_operational_stress_prompt import ROSEW_PILLAR_ID
+
 _BATCH_SIZE = 5
 
 
@@ -62,6 +64,22 @@ class ScoreAnalyzerService:
                 return 0.0
         return 0.0
 
+
+    @staticmethod
+    def _to_float_or_none(value):
+        if value is None:
+            return None
+
+        try:
+            val = float(str(value).replace(",", "").strip())
+
+            if math.isnan(val) or math.isinf(val):
+                return 0.0
+
+            return round(val, 2)
+        except (ValueError, TypeError):
+            return None
+    
     @staticmethod
     def _to_int(value) -> int:
         """Convert any value to an int, defaulting to 0."""
@@ -214,14 +232,9 @@ class ScoreAnalyzerService:
                 (
                     SELECT QuestionID
                     FROM AIEstimatedQuestionScores
-                    WHERE Year = {year}
+                    WHERE Year = {year} AND {where}
                 )
             """
-
-        df = await self._db.get_view_data(
-            "vw_AiCountryPillarQuestionEvaluations",
-            where
-        )
 
         df = await self._db.get_view_data("vw_AiCountryPillarQuestionEvaluations", where)
         if df.empty:
@@ -253,7 +266,11 @@ class ScoreAnalyzerService:
                         continue
 
                     normalized = self._safe_normalized(row.NormalizedValue)
-                    batch.append(self._build_question_record(row, ai_data, normalized))
+                    if int(row.PillarID) == ROSEW_PILLAR_ID:
+                        if ai_data["AIScore"] is not None and int(ai_data["AIScore"]) >= 0:
+                            batch.append(self._build_question_record(row, ai_data, normalized))
+                    else:
+                        batch.append(self._build_question_record(row, ai_data, normalized))
                     batch = await self._flushQuestion(
                         country.CountryID, batch ,self._db.bulk_upsert_question_evaluations
                     )
@@ -418,7 +435,7 @@ class ScoreAnalyzerService:
             "PillarID": row.PillarID,
             "QuestionID": row.QuestionID,
             "Year": self._to_int(ai.get("Year")),
-            "AIScore": self._to_float(ai.get("AIScore")),
+            "AIScore": self._to_float_or_none(ai.get("AIScore")),
             "AIProgress": ai_progress,
             "EvaluatorScore": evaluator_score,
             "Discrepancy": self._discrepancy(ai_progress, evaluator_score),

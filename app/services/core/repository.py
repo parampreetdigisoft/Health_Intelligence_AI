@@ -10,8 +10,41 @@ import logging
 from typing import Any, Dict, List, Optional
 import pandas as pd
 from app.services.core.connection import DBEngine, db_engine
-
 logger = logging.getLogger(__name__)
+
+_PILLAR_QUESTION_COUNTRY_EVAL_TVP_COLUMNS = [
+    ("CountryID", "int"),
+    ("PillarID", "int"),
+    ("QuestionID", "int"),
+    ("Year", "int"),
+    ("AIScore", "decimal(5,2)"),
+    ("AIProgress", "decimal(5,2)"),
+    ("EvaluatorScore", "decimal(5,2)"),
+    ("Discrepancy", "decimal(5,2)"),
+    ("ConfidenceLevel", "varchar(200)"),
+    ("EvidenceSummary", "nvarchar(max)"),
+    ("StructuralEvidence", "nvarchar(max)"),
+    ("OperationalEvidence", "nvarchar(max)"),
+    ("OutcomeEvidence", "nvarchar(max)"),
+    ("PerceptionEvidence", "nvarchar(max)"),
+    ("TemporalScope", "nvarchar(max)"),
+    ("DistortionScreening", "nvarchar(max)"),
+    ("RelationalDependencies", "nvarchar(max)"),
+    ("StressPoliticalShock", "nvarchar(max)"),
+    ("StressEconomicShock", "nvarchar(max)"),
+    ("StressNarrativeShock", "nvarchar(max)"),
+    ("StressOverallResilienceShock", "nvarchar(max)"),
+    ("InequalityAdjustment", "nvarchar(max)"),
+    ("OpacityRisk", "nvarchar(max)"),
+    ("RedFlag", "nvarchar(max)"),
+    ("SourceName", "varchar(max)"),
+    ("SourceType", "varchar(200)"),
+    ("SourceURL", "varchar(max)"),
+    ("SourceDataYear", "int"),
+    ("SourceHierarchyLevel", "int"),
+    ("SourceDataExtract", "nvarchar(max)"),
+    ("SourcesConsulted", "int"),
+]
 
 class DatabaseRepository:
     """
@@ -66,30 +99,24 @@ class DatabaseRepository:
     # Question evaluations
     # ------------------------------------------------------------------
 
-    async def bulk_upsert_question_evaluations(self, rows: List[Dict], countryID:int) -> None:
+
+    async def bulk_upsert_question_evaluations(self, rows: List[Dict], countryID: int) -> None:
         if not rows:
             return
 
-        col_order = [
-            "CountryID", "PillarID", "QuestionID", "Year",
-            "AIScore", "AIProgress", "EvaluatorScore", "Discrepancy",
-            "ConfidenceLevel", "EvidenceSummary",
-            "StructuralEvidence", "OperationalEvidence",
-            "OutcomeEvidence", "PerceptionEvidence",
-            "TemporalScope", "DistortionScreening",
-            "RelationalDependencies",
-            "StressPoliticalShock", "StressEconomicShock",
-            "StressNarrativeShock", "StressOverallResilienceShock",
-            "InequalityAdjustment", "OpacityRisk", "RedFlag",
-            "SourceName", "SourceType", "SourceURL",
-            "SourceDataYear", "SourceHierarchyLevel",
-            "SourceDataExtract", "SourcesConsulted",
-        ]
+        col_order = [name for name, _ in _PILLAR_QUESTION_COUNTRY_EVAL_TVP_COLUMNS]
 
-        records =  self.engine.rows_to_tuples(rows, col_order)
-        await self.engine.execute_sp_async(
-            "{CALL usp_AiBulkUpsertPillarQuestionCountryEvaluations (?)}",
-            (records,),
+        records = []
+        for row in rows:
+            record = {name: row.get(name) for name in col_order}
+            records.append(record)
+
+        await self.engine.execute_sp_tvp_via_openjson_async(
+            sp_name="usp_AiBulkUpsertPillarQuestionCountryEvaluations",
+            tvp_type="dbo.TVP_PillarQuestionCountryEvaluationType",
+            tvp_param_name="Evaluations",
+            columns=_PILLAR_QUESTION_COUNTRY_EVAL_TVP_COLUMNS,
+            rows=records,
         )
 
         await self.AiRecalculateCountryScore(countryID)

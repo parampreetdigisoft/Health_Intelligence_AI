@@ -5,12 +5,15 @@ pyodbc + ThreadPool so async/await can be used safely.
 SQLAlchemy used only for pd.read_sql() compatibility.
 """
 
+import json
 import logging
+import math
 import pyodbc
 import pandas as pd
 import asyncio
 from contextlib import contextmanager
-from typing import Any, Dict, List, Optional
+from decimal import Decimal
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 from concurrent.futures import ThreadPoolExecutor
 
 from sqlalchemy import create_engine, text
@@ -147,6 +150,56 @@ class DBEngine:
                 logger.exception(f"SP error — {sp_query} : {e}")
                 raise
 
+    def execute_sp_tvp_via_openjson(
+        self,
+        sp_name: str,
+        tvp_type: str,
+        tvp_param_name: str,
+        columns: Sequence[Tuple[str, str]],
+        rows: List[Dict[str, Any]],
+    ) -> None:
+        """
+        Execute a stored procedure that accepts a TVP, passing rows as JSON.
+
+        pyodbc cannot bind NULLs in the first TVP row because it infers column
+        types from row 0 (SQLBindParameter HY004). OPENJSON preserves NULLs.
+        """
+        if not rows:
+            return
+
+        col_names = [name for name, _ in columns]
+        with_clause = ",\n        ".join(
+            f"{name} {sql_type} '$.{name}'" for name, sql_type in columns
+        )
+        col_list = ", ".join(col_names)
+
+        query = f"""
+            SET NOCOUNT ON;
+            DECLARE @tvp {tvp_type};
+            INSERT INTO @tvp ({col_list})
+            SELECT {col_list}
+            FROM OPENJSON(?)
+            WITH (
+                {with_clause}
+            );
+            EXEC {sp_name} @{tvp_param_name} = @tvp;
+        """
+
+        payload = json.dumps(
+            [self._json_safe_row(row, col_names) for row in rows],
+            ensure_ascii=False,
+        )
+
+        with get_connection(self.connection_string) as conn:
+            try:
+                cursor = conn.cursor()
+                cursor.execute(query, (payload,))
+                conn.commit()
+            except Exception as e:
+                conn.rollback()
+                logger.exception(f"SP TVP OPENJSON error — {sp_name} : {e}")
+                raise
+
     def execute_write(
         self,
         query: str,
@@ -228,6 +281,25 @@ class DBEngine:
             params,
         )
 
+    async def execute_sp_tvp_via_openjson_async(
+        self,
+        sp_name: str,
+        tvp_type: str,
+        tvp_param_name: str,
+        columns: Sequence[Tuple[str, str]],
+        rows: List[Dict[str, Any]],
+    ) -> None:
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(
+            executor,
+            self.execute_sp_tvp_via_openjson,
+            sp_name,
+            tvp_type,
+            tvp_param_name,
+            columns,
+            rows,
+        )
+
     async def execute_write_async(
         self,
         query: str,
@@ -286,6 +358,21 @@ class DBEngine:
     # ---------------- UTIL ---------------- #
 
     @staticmethod
+    def _json_safe_row(row: Dict[str, Any], col_names: Sequence[str]) -> Dict[str, Any]:
+        safe: Dict[str, Any] = {}
+        for name in col_names:
+            value = row.get(name)
+            if value is None:
+                safe[name] = None
+            elif isinstance(value, Decimal):
+                safe[name] = float(value)
+            elif isinstance(value, float) and (math.isnan(value) or math.isinf(value)):
+                safe[name] = None
+            else:
+                safe[name] = value
+        return safe
+
+    @staticmethod
     def rows_to_tuples(rows: List[Dict], col_order: List[str]) -> List[tuple]:
         if not rows:
             return []
@@ -296,7 +383,11 @@ class DBEngine:
             if col not in df.columns:
                 df[col] = None
 
-        return list(df[col_order].itertuples(index=False, name=None))
+        # Preserve SQL NULLs for TVPs and inserts instead of letting pandas
+        # coerce missing numeric values into NaN.
+        df = df[col_order].astype(object).where(pd.notna(df[col_order]), None)
+
+        return list(df.itertuples(index=False, name=None))
 
 
 # ---------------------------------------------------------------------------

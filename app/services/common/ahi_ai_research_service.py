@@ -16,6 +16,10 @@ from typing import Any, Dict, Optional
 from app.services.common.llm_base_service import LLMBaseService
 from app.services.common.pillar_prompts import AHIPPillarPrompts
 from app.services.common.country_prompt import AHIPromptTemplates
+from app.services.common.realtime_operational_stress_prompt import (
+    ROSEW_PILLAR_ID,
+    RealtimeOperationalStressPrompts,
+)
 from app.services.common import json_response_parser as jrp
 from app.services.core.repository import db_repository
 logger = logging.getLogger(__name__)
@@ -82,9 +86,17 @@ class AHIResearchService:
             year = year or datetime.now().year
             pillars = await db_repository.get_active_pillars_map()
             pillar_context = AHIPPillarPrompts.get_pillar_context(pillarID, pillars)
-            system_prompt = AHIPromptTemplates.question_system_prompt(pillar_context)
 
-            label = f"question|{country_name}|pillar{pillarID}"
+            # Pillar 22 (ROSEW): dedicated weekly data-gap prompt; same JSON output.
+            if int(pillarID) == ROSEW_PILLAR_ID:
+                system_prompt = RealtimeOperationalStressPrompts.question_system_prompt(
+                    pillar_context
+                )
+                label = f"question|{country_name}|pillar|rosew"
+            else:
+                system_prompt = AHIPromptTemplates.question_system_prompt(pillar_context)
+                label = f"question|{country_name}|pillar"
+
             raw = await self._llm_svc.invoke_chain(
                 system_prompt=system_prompt,
                 user_template=_QUESTION_USER_TMPL,

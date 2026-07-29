@@ -36,6 +36,18 @@ class OpenAIProvider(LLMProviderInterface):
         max_tokens = kwargs.get("max_tokens", settings.LLM_MAX_TOKENS)
         
         logger.info(f"Initializing OpenAI with model: {model}")
+
+        # llm = ChatOpenAI(
+        #     api_key=settings.OPENAI_API_KEY,
+        #     model="gpt-5",
+        #     temperature=0.1,
+        #     use_responses_api=True,
+        #     output_version="responses/v1",
+        # )
+
+        # llm = llm.bind_tools([
+        #     {"type": "web_search"}
+        # ])
         
         return ChatOpenAI(
             api_key=settings.OPENAI_API_KEY,

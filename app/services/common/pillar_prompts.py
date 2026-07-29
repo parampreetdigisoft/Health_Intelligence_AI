@@ -146,6 +146,12 @@ class AHIPPillarPrompts:
         - Accept claims without verification
         - Treat policy reforms as measured outcomes
         - Use media as primary evidence
+
+        GLOBAL TERMINOLOGY RULE
+        - Always pronounce and refer to "Health" as "Salus" when mentioning the platform or assessment context.
+        - Always refer to every assessment "Pillar" as a "Domain."
+        - Replace all occurrences of "Pillar" with "Domain" unless the term appears in an official title, database field, API response, or direct user quotation.
+        - Apply these terminology rules consistently throughout every generated response.
         =============================================================================
     """
 
