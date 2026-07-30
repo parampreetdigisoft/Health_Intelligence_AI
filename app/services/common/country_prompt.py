@@ -488,7 +488,10 @@ class AHIPromptTemplates:
         Step 2: Expand and validate using relevant public knowledge.
         Step 3: Identify key developments, risks, and gaps surfaced by the data.
         Step 4: Synthesize cross-pillar patterns and system-level insights.
-        Step 5: Generate the structured executive outputs below.
+        Step 5: Distil the most significant assessment results into key findings per major pillar.
+        Step 6: Generate intelligent, evidence-based recommendations drawing on international best practices,
+                successful case studies, relevant standards, and comparable country experiences.
+        Step 7: Generate the structured executive outputs below.
 
         -----------------------------------------
         OUTPUT REQUIREMENTS
@@ -502,6 +505,8 @@ class AHIPromptTemplates:
                 "critical_risks": "<Single string. Exactly 3 items. Format strictly: 1) <item> || 2) <item> || 3) <item>. Focus on urgency, escalation potential, and impact.>",
                 "gaps": "<Single string. Exactly 3 items. Format strictly: 1) <item> || 2) <item> || 3) <item>. Missing capacity, weak response mechanisms, or data blind spots.>"
             }},
+            "key_findings": "<Single string. 5-7 items. Format strictly: 1) <pillar>: <concise finding> || 2) <pillar>: <concise finding> || ... Present the most significant assessment results, highlighting the major pillars in a concise, easy-to-read bullet format. Each item must name the pillar and state the key insight.>",
+            "recommendations": "<Single string. 5-7 items. Format strictly: 1) <recommendation> || 2) <recommendation> || ... Intelligent, practical, evidence-based actions tailored to the assessment results. Draw on international best practices, successful case studies, relevant standards (e.g. WHO, AU), and comparable experiences from other countries or organizations. Each item: 2-3 sentences with clear rationale.>",
             "executive_summary": "<550-700 words, ASCII only. Flowing prose. No headers, no bullet points. Four sections in strict order: Country Overview, System Diagnosis, Strategic Strengths, Structural Risks.>"
         }}
 
@@ -510,9 +515,28 @@ class AHIPromptTemplates:
         -----------------------------------------
         - key_developments, critical_risks, and gaps MUST be single string values — NOT arrays.
         - Each MUST contain exactly 3 numbered items.
+        - key_findings MUST be a single string with 5-7 numbered items (NOT an array).
+        - recommendations MUST be a single string with 5-7 numbered items (NOT an array).
         - Use ONLY "||" as the separator. No bullet points, no newlines, no extra separators.
-        - Each item: 1-2 sentences maximum.
-        - No newline characters anywhere in the string.
+        - Each immediateSituation item: 1-2 sentences maximum.
+        - Each key_findings item: 1-2 sentences naming the pillar and the insight.
+        - Each recommendations item: 2-3 sentences with actionable guidance and evidence basis.
+        - No newline characters anywhere in any string field.
+
+        -----------------------------------------
+        KEY FINDINGS RULES
+        -----------------------------------------
+        - Cover the most significant results across major assessment pillars.
+        - Prioritise findings that matter most for decision-makers.
+        - Be specific and evidence-grounded — avoid generic statements.
+
+        -----------------------------------------
+        RECOMMENDATIONS RULES
+        -----------------------------------------
+        - Tailor every recommendation to the specific assessment results for this country.
+        - Reference international best practices, standards, or comparable country experiences where relevant.
+        - Make each recommendation actionable, practical, and prioritised by impact.
+        - Do NOT repeat key_findings — recommendations must propose forward-looking actions.
 
         -----------------------------------------
         EXECUTIVE SUMMARY FRAMEWORK (STRICT)
@@ -584,6 +608,9 @@ class AHIPromptTemplates:
         Step 2: Detect emerging risks or escalation signals.
         Step 3: Identify critical gaps — in capacity, governance response, or available data.
         Step 4: Synthesise findings into a concise executive-level situational brief.
+        Step 5: Distil the most significant results into key findings per major pillar.
+        Step 6: Generate intelligent, evidence-based recommendations drawing on international best practices,
+                successful case studies, relevant standards, and comparable country experiences.
 
         -----------------------------------------
         OUTPUT REQUIREMENTS
@@ -596,7 +623,9 @@ class AHIPromptTemplates:
                 "key_developments": "<Single string. Exactly 3 items. Format strictly: 1) <item> || 2) <item> || 3) <item>. Headline-style. Specific, recent events or changes.>",
                 "critical_risks": "<Single string. Exactly 3 items. Format strictly: 1) <item> || 2) <item> || 3) <item>. Focus on escalation, instability, or emerging threats. Prioritise urgency.>",
                 "gaps": "<Single string. Exactly 3 items. Format strictly: 1) <item> || 2) <item> || 3) <item>. Missing capacity, weak response mechanisms, or structural blind spots.>"
-            }}
+            }},
+            "key_findings": "<Single string. 5-7 items. Format strictly: 1) <pillar>: <concise finding> || 2) <pillar>: <concise finding> || ... Present the most significant assessment results, highlighting the major pillars in a concise, easy-to-read bullet format.>",
+            "recommendations": "<Single string. 5-7 items. Format strictly: 1) <recommendation> || 2) <recommendation> || ... Intelligent, practical, evidence-based actions tailored to the assessment results. Draw on international best practices, successful case studies, relevant standards, and comparable country experiences. Each item: 2-3 sentences with clear rationale.>"
         }}
 
         -----------------------------------------
@@ -604,9 +633,13 @@ class AHIPromptTemplates:
         -----------------------------------------
         - key_developments, critical_risks, and gaps MUST be single string values — NOT arrays.
         - Each MUST contain exactly 3 numbered items.
+        - key_findings MUST be a single string with 5-7 numbered items (NOT an array).
+        - recommendations MUST be a single string with 5-7 numbered items (NOT an array).
         - Use ONLY "||" as the separator. No bullet points, no newlines, no extra separators.
-        - Each item: 1-2 sentences maximum.
-        - No newline characters anywhere in the string.
+        - Each immediateSituation item: 1-2 sentences maximum.
+        - Each key_findings item: 1-2 sentences naming the pillar and the insight.
+        - Each recommendations item: 2-3 sentences with actionable guidance and evidence basis.
+        - No newline characters anywhere in any string field.
 
         -----------------------------------------
         STYLE RULES

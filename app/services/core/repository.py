@@ -345,6 +345,8 @@ class DatabaseRepository:
                 KeyDevelopments = ?,
                 CriticalRisks = ?,
                 Gaps = ?,
+                KeyFindings = ?,
+                Recommendations = ?,
                 EvidenceSummary = CASE 
                     WHEN ? IS NOT NULL AND LTRIM(RTRIM(CAST(? AS NVARCHAR(MAX)))) <> '' 
                     THEN ? 
@@ -361,6 +363,8 @@ class DatabaseRepository:
             record.get("key_developments"),
             record.get("critical_risks"),
             record.get("gaps"),
+            record.get("key_findings"),
+            record.get("recommendations"),
             exec_summary,   # check NULL
             exec_summary,   # check empty
             exec_summary,   # value to update

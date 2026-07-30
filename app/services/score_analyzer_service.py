@@ -563,6 +563,8 @@ class ScoreAnalyzerService:
             "key_developments": ai.get("key_developments", "Unknown"),
             "critical_risks": ai.get("critical_risks"),
             "gaps": ai.get("gaps"),
+            "key_findings": ai.get("key_findings"),
+            "recommendations": ai.get("recommendations"),
             "executive_summary": summary if isinstance(summary, str) and len(summary) > 50 else ""
         }
 

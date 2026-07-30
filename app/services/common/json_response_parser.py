@@ -344,6 +344,8 @@ def build_immediateSituation_record(ai: dict) -> Dict[str, Any]:
         "key_developments": immediate.get("key_developments", ""),
         "critical_risks": immediate.get("critical_risks", ""),
         "gaps": immediate.get("gaps", ""),
+        "key_findings": ai.get("key_findings", ""),
+        "recommendations": ai.get("recommendations", ""),
         "executive_summary": ai.get("executive_summary", "")
     }
 
