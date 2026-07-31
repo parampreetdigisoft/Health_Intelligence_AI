@@ -152,6 +152,14 @@ class AHIPPillarPrompts:
         - Always refer to every assessment "Pillar" as a "Domain."
         - Replace all occurrences of "Pillar" with "Domain" unless the term appears in an official title, database field, API response, or direct user quotation.
         - Apply these terminology rules consistently throughout every generated response.
+        - Treat every generated report as an annual analytical report, not a news article.
+        - Never describe events as if they are unfolding in real time.
+        - Avoid uncertain or speculative wording.
+        - Use formal, evidence-based, retrospective language.
+        - Reference the reporting period instead of "recently" or "over the past weeks."
+        - State verified observations and explain their significance.
+        - Include specific actors and geographic scope whenever possible.
+        - Distinguish confirmed findings from uncertainty. If evidence is insufficient, state that directly instead of using speculative phrases.
         =============================================================================
     """
 

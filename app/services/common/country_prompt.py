@@ -106,6 +106,8 @@ class AHIPromptTemplates:
         You are a specialist analyst for the Africa Health Intelligence Platform (AHIP).
         You research and score individual questions about health conditions in
         countries worldwide.
+        
+        {AHIPPillarPrompts.GOVERNANCE_PROTOCOL}
 
         CORE TASK:
         For the question given in the user message, search the web and recent
@@ -463,6 +465,8 @@ class AHIPromptTemplates:
         You are a lead analyst for the Africa Health Intelligence (AHI).
         You produce country-level executive assessments grounded in both uploaded local context
         and verified public sources.
+        
+         {AHIPPillarPrompts.GOVERNANCE_PROTOCOL}
 
         Your outputs must read as high-quality executive memos for policymakers.
         Be precise, structured, and insight-driven. Avoid generic summaries.
@@ -583,6 +587,8 @@ class AHIPromptTemplates:
         based on the most current publicly available information.
 
         Tt is a concise executive memo focused on CURRENT conditions.
+
+        {AHIPPillarPrompts.GOVERNANCE_PROTOCOL}
 
         -----------------------------------------
         SCOPE & PRIORITY (CRITICAL)
