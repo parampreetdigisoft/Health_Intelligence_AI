@@ -240,7 +240,11 @@ def map_question_response(
         "SourceURL": analysis.get("source_url"),
         "SourceDataYear": analysis.get("source_data_year"),
         "SourceHierarchyLevel": analysis.get("source_trust_level"),
-        "SourceDataExtract": analysis.get("source_data_extract"),
+        "SourceDataExtract": _with_sourcing_meta(
+            analysis.get("source_data_extract"),
+            analysis.get("data_quality_flag"),
+            analysis.get("reporting_lag"),
+        ),
         # Optional extras
         "SourcesConsulted": analysis.get("sources_consulted"),
         "ConfidenceExplanation": analysis.get("confidence_explanation"),
@@ -288,8 +292,8 @@ def map_pillar_response(
         "InstitutionalAssessment": analysis.get("institutional_assessment"),
         "DataGapAnalysis": analysis.get("data_gap_analysis"),
         "RedFlag": analysis.get("red_flag"),
-        # Sources array
-        "Sources": analysis.get("sources", []),
+        # Sources — lag/flag recomputed from platform Target Year
+        "Sources": apply_data_sourcing_to_sources(analysis.get("sources", []), year),
     }
 
 
@@ -379,6 +383,145 @@ def normalize_numbered_list_text(value: Any) -> str:
     # Collapse accidental blank lines between points
     text = re.sub(r"\n{2,}", "\n", text)
     return text.strip()
+
+
+def _to_year_int(value: Any) -> Optional[int]:
+    try:
+        if value is None or value == "":
+            return None
+        return int(float(value))
+    except (TypeError, ValueError):
+        return None
+
+
+def data_quality_flag_for_lag(lag: Optional[int], *, has_data: bool) -> str:
+    if not has_data:
+        return "No Data"
+    if lag is None:
+        return "No Data"
+    if lag <= 0:
+        return "Current"
+    if lag == 1:
+        return "1-Year Lag"
+    if lag == 2:
+        return "2-Year Lag"
+    return "3-Year Lag"
+
+
+def lag_note_for_source(data_year: int, lag: int, flag: str) -> str:
+    if lag <= 0 or flag == "Current":
+        return ""
+    if lag == 1:
+        return f"Data based on {data_year}. Current year data not available."
+    if lag == 2:
+        return (
+            f"Data based on {data_year}. "
+            "System has cascaded back 2 years to find available reporting."
+        )
+    return (
+        f"Data sourced from {data_year}. Significant data gap of 3+ years. "
+        "Consider this data a proxy estimate."
+    )
+
+
+_LAG_PREFIX_RE = re.compile(
+    r"^(?:"
+    r"\[[^\]]*Lag[^\]]*\]\s*"
+    r"|\[Reporting Lag:[^\]]*\]\s*"
+    r"|\d+-Year Lag note:\s*"
+    r"|Data based on \d{4}\.[^.]*\.\s*"
+    r"|Data sourced from \d{4}\.[^.]*\.\s*"
+    r"|Significant data gap of 3\+ years\.[^.]*\.\s*"
+    r"|System has cascaded back[^.]*\.\s*"
+    r"|Current year data not available\.\s*"
+    r"|Consider this data a proxy estimate\.\s*"
+    r")+",
+    re.IGNORECASE,
+)
+
+
+def strip_lag_prefixes(extract: str) -> str:
+    text = (extract or "").strip()
+    prev = None
+    while prev != text:
+        prev = text
+        text = _LAG_PREFIX_RE.sub("", text).strip()
+    return text
+
+
+def apply_data_sourcing_to_sources(sources: Any, target_year: int) -> list:
+    """
+    Recompute reporting_lag / data_quality_flag from platform Target Year,
+    and rewrite data_extract with a single correct lag note.
+    """
+    if not isinstance(sources, list):
+        return []
+
+    target = int(target_year)
+    lookback_floor = target - 4
+    normalized: list = []
+
+    for src in sources:
+        if not isinstance(src, dict):
+            continue
+        item = dict(src)
+        data_year = _to_year_int(item.get("data_year"))
+        extract = strip_lag_prefixes(str(item.get("data_extract") or ""))
+
+        if data_year is None:
+            item["reporting_lag"] = None
+            item["data_quality_flag"] = "No Data"
+            if extract:
+                item["data_extract"] = (
+                    "No data available for the last 5 years. Reporting index cannot be calculated. "
+                    + extract
+                ).strip()
+            else:
+                item["data_extract"] = (
+                    "No data available for the last 5 years. Reporting index cannot be calculated."
+                )
+            normalized.append(item)
+            continue
+
+        lag = target - data_year
+        if data_year < lookback_floor:
+            flag = "3-Year Lag" if lag >= 3 else data_quality_flag_for_lag(lag, has_data=True)
+        else:
+            flag = data_quality_flag_for_lag(lag, has_data=True)
+
+        item["data_year"] = data_year
+        item["reporting_lag"] = max(lag, 0)
+        item["data_quality_flag"] = flag
+
+        note = lag_note_for_source(data_year, max(lag, 0), flag)
+        if note:
+            item["data_extract"] = f"{note} {extract}".strip()
+        else:
+            item["data_extract"] = extract
+
+        normalized.append(item)
+
+    return normalized
+
+
+def _with_sourcing_meta(
+    extract: Any,
+    quality_flag: Any,
+    reporting_lag: Any,
+) -> str:
+    """Prefix extract with data-quality flag / reporting lag when present."""
+    text = (extract or "").strip() if isinstance(extract, str) else ("" if extract is None else str(extract))
+    meta_parts: list[str] = []
+    flag = (quality_flag or "").strip() if isinstance(quality_flag, str) else (
+        "" if quality_flag is None else str(quality_flag).strip()
+    )
+    if flag:
+        meta_parts.append(f"[{flag}]")
+    if reporting_lag is not None and str(reporting_lag).strip() != "":
+        meta_parts.append(f"[Reporting Lag: {reporting_lag}]")
+    if meta_parts and not text.startswith("["):
+        return f"{' '.join(meta_parts)} {text}".strip()
+    return text
 
 
 def _validate_ai_score(data: Dict) -> None:

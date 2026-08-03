@@ -14,7 +14,7 @@ class AHIPromptTemplates:
 
     Usage:
         prompt = AHIPromptTemplates.question_system_prompt(pillar_context)
-        prompt = AHIPromptTemplates.pillar_system_prompt(pillar_context)
+        prompt = AHIPromptTemplates.pillar_system_prompt(pillar_context, year)
         prompt = AHIPromptTemplates.country_system_prompt(pillar_list_str)
         prompt = AHIPromptTemplates.rag_routing_prompt(toc_text, question)
         prompt = AHIPromptTemplates.rag_answer_system_prompt()
@@ -231,7 +231,15 @@ class AHIPromptTemplates:
     #  PILLAR-level prompt                                                #
     # ================================================================== #
     @staticmethod
-    def pillar_system_prompt(pillar_context: str) -> str:
+    def pillar_system_prompt(pillar_context: str, year: Optional[int] = None) -> str:
+        target_year = int(year) if year else datetime.now().year
+        y0, y1, y2, y3, y4 = (
+            target_year,
+            target_year - 1,
+            target_year - 2,
+            target_year - 3,
+            target_year - 4,
+        )
         return f"""
             You are a senior analyst for the Africa Health Intelligence (AHI).
             You conduct deep, multi-source assessments of a single Health pillar for a country.
@@ -242,12 +250,25 @@ class AHIPromptTemplates:
             PILLAR CONTEXT:
             {pillar_context}
 
+            -----------------------------------------
+            DATA SOURCING (Target Year = {y0})
+            -----------------------------------------
+            Search newest first, then cascade only if needed:
+            {y0} → {y1} → {y2} → {y3} → {y4}. Use the newest year found. Do not go older than {y4}.
+            Within a year prefer: Primary Government > International Organization > Academic/NGO > Media (fallback only).
+
+            For every source compute against Target Year {y0}:
+            - data_year = year the data represents
+            - reporting_lag = {y0} - data_year
+            - data_quality_flag: 0=Current, 1=1-Year Lag, 2=2-Year Lag, >=3=3-Year Lag, none in window=No Data
+            Lag note in data_extract only when reporting_lag > 0. Prefer {y0} evidence; do not default to older years when newer exists.
+
             YOUR MANDATORY PROCESS (execute in full — no shortcuts):
             Step 1:  Establish temporal scope — what is the evidence range? Note pre-1950 roots
                      and their current institutional expression (if relevant).
-            Step 2:  Conduct broad web research across all evidence levels for this pillar.
+            Step 2:  Research this pillar starting at Target Year {y0}, then cascade back as needed.
             Step 3:  Collect evidence across all four layers for this specific pillar.
-            Step 4:  Apply evidence hierarchy.
+            Step 4:  Apply evidence hierarchy and source trust levels above.
             Step 5:  Test geographic equity — does the data reflect the whole country, or only
                      central/affluent zones? Identify core-periphery performance gaps.
             Step 6:  Screen for distortion — election-cycle data, restricted media, curated
@@ -263,9 +284,8 @@ class AHIPromptTemplates:
             Step 11: Apply non-compensation rule — note if this pillar's strength is offset or
                      undermined by weakness in a dependent domain.
             Step 12: Assign final score using the seven-level grid.
-            Step 13: Provide sources — MANDATORY: return between 1 and 7 sources; each source
-                     MUST include all required fields. If you cannot find at least 1 valid source,
-                     make one reasonable guessed source.
+            Step 13: Provide sources — return 1-7 sources with all required fields. Prefer newest
+                     year and highest-trust type. If nothing in {y4}-{y0}, use data_quality_flag "No Data".
 
             REAL-TIME EARLY WARNING PROTOCOL (MANDATORY):
             The AI scoring system must explicitly integrate real-time and near real-time
@@ -314,6 +334,8 @@ class AHIPromptTemplates:
 
             5. Do NOT allow noisy real-time signals to override strong structural evidence
             unless corroborated by multiple credible sources.
+            Real-time / media signals are Media-tier fallback only for structural scoring;
+            they may still inform red_flag and early-warning notes when corroborated.
 
             6. If no reliable real-time evidence exists, state this clearly and rely on
             conventional evidence layers.
@@ -337,12 +359,14 @@ class AHIPromptTemplates:
                 }},
                 "sources": [
                     {{
-                        "source_type": "<Official Government|International Organization|Academic|Civil Society|Geospatial|Media>",
-                        "source_name": "<Organization or publication name>",
+                        "source_type": "<Primary Government|International Organization|Academic|NGO|Media>",
+                        "source_name": "<Organization or author name>",
                         "source_url": "<URL or 'Not available'>",
-                        "data_year": <integer>,
-                        "source_trust_level": <1-7>,
-                        "data_extract": "<5-100 words. The specific finding from this source. 1-3 sentences.>"
+                        "data_year": <integer — year the data represents>,
+                        "reporting_lag": <integer — {y0} minus data_year; 0 if current>,
+                        "data_quality_flag": "<Current|1-Year Lag|2-Year Lag|3-Year Lag|No Data>",
+                        "source_trust_level": <1-7 — Primary Government 1-2, International Organization 3, Academic 4, NGO 5, Media 6-7>,
+                        "data_extract": "<5-100 words. Finding used from this source. If reporting_lag>0, start with one short lag note only.>"
                     }}
                 ],
                 "temporal_scope": "<50-100 words. Evidence timeframe (1950-present). Key historical turning points.>",
@@ -356,19 +380,23 @@ class AHIPromptTemplates:
                     "stress_score_adjustment": "<5-100 words. Was the score adjusted downward for stress vulnerability? State original score and reason if yes.>"
                 }},
                 "inequality_adjustment": "<50-100 words. Distributional imbalances found. Groups excluded. Score adjusted and by how much? 'No adjustment needed' if equity is adequate.>",
-                "opacity_risk": "<50-100 words. Data gaps identified, cause, and significance. Empty string if none.>",
+                "opacity_risk": "<50-100 words. Data gaps or lag alerts vs Target Year {y0}. Empty string if none.>",
                 "non_compensation_note": "<50-100 words. Non-Compensation Rule applied? 'Not applicable' if no dependency exists.>",
                 "geographic_equity_note": "<50-100 words. Outcomes equitable across the country? Compare core vs periphery and income/identity groups. 2-3 sentences.>",
                 "institutional_assessment": "<50-100 words. Quality of governance and institutional capacity for this pillar. 2-3 sentences.>",
-                "data_gap_analysis": "<50-100 words. What important information was unavailable? What does its absence signal? 1-2 sentences.>",
+                "data_gap_analysis": "<50-100 words. What was unavailable within {y4}-{y0}? What does absence signal? 1-2 sentences.>",
                 "red_flag": "<50-100 words. Systemic concerns: cosmetic reform, single-source claims, elite capture, data suppression. Empty string if none.>"
             }}
 
             **CRITICAL RULES:**
-            - Include 2 to 8 sources when available; if only 1 credible source exists, include it with a note that findings are partly derived from broader research
-            - Include 1 to 2 recent sources when current risks are relevant
+            - Target Year is {y0}. reporting_lag and data_quality_flag MUST be relative to {y0}.
+            - Search {y0} first; cascade only when that year is missing.
+            - Every source MUST include: source_type, source_name, source_url, data_year,
+              reporting_lag, data_quality_flag, source_trust_level, data_extract
+            - Prefer Primary Government > International > Academic/NGO > Media
+            - Include 2 to 7 sources when available; if only 1, note limited corroboration in opacity_risk
             - Reflect verified real-time risks in ai_score, ai_progress, and red_flag
-            - Do not rely only on social media without verification
+            - Do not rely only on media without higher-tier corroboration
             - Keep output clear and readable for general audiences
 
             {AHIPromptTemplates._OUTPUT_STYLE}

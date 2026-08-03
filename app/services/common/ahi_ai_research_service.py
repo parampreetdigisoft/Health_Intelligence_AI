@@ -43,8 +43,10 @@ _PILLAR_USER_TMPL = """
     Country: {country_name}
     Continent: {continent}
     Pillar: {pillar_name}
-    Year: {year}
+    Target Year: {year}
 
+    Search Target Year {year} first, then cascade back only if needed (up to 4 prior years).
+    Compute reporting_lag and data_quality_flag relative to Target Year {year}.
     Return ONLY valid JSON.
 """
 
@@ -131,7 +133,7 @@ class AHIResearchService:
             year = year or datetime.now().year
             pillars = await db_repository.get_active_pillars_map()
             pillar_context = AHIPPillarPrompts.get_pillar_context(pillarId, pillars)
-            system_prompt = AHIPromptTemplates.pillar_system_prompt(pillar_context)
+            system_prompt = AHIPromptTemplates.pillar_system_prompt(pillar_context, year)
 
             label = f"pillar|{country_name}|pillar{pillarId}"
             raw = await self._llm_svc.invoke_chain(

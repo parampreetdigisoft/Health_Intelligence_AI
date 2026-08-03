@@ -160,12 +160,14 @@ class RealtimeOperationalStressPrompts:
             "opacity_risk": "<80-130 words. Cause of any data gap (suppression, conflict, institutional incapacity, routine non-publication, or stale carry-forward). Empty string if none.>",
             "red_flag": "<80-130 words. Serious concerns (single-source claims, uncorroborated alert spike, elite-only data, Stale/Unverified carry-forward below confidence floor). Empty string if none.>",
             "data_sources_count": <integer 1-5>,
-            "source_type": "<Official Government|International Organization|Academic|Civil Society|Geospatial|Media>",
-            "source_name": "<Organization or publication name>",
+            "source_type": "<Primary Government|International Organization|Academic|NGO|Media>",
+            "source_name": "<Organization or author name>",
             "source_url": "<URL or 'Not available'>",
-            "source_data_year": <year as integer>,
-            "source_trust_level": <1-7>,
-            "source_data_extract": "<The specific data point or finding, 1-2 sentences.>"
+            "source_data_year": <year as integer — actual year the data represents>,
+            "reporting_lag": <integer — current target year minus source_data_year; 0 if current>,
+            "data_quality_flag": "<Current|1-Year Lag|2-Year Lag|3-Year Lag|No Data>",
+            "source_trust_level": <1-7 — Primary Government 1-2, International Organization 3, Academic 4, NGO 5, Media/Grey 6-7>,
+            "source_data_extract": "<The specific data point or finding, 1-2 sentences. If lag > 0, begin with the lag note.>"
         }}
 
         {AHIPromptTemplates._OUTPUT_STYLE}
