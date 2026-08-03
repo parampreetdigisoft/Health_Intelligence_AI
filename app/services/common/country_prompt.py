@@ -94,8 +94,10 @@ class AHIPromptTemplates:
         - Write for a general audience (no technical jargon)
         - Avoid internal scoring language
         - Use clear, concise, evidence-based statements
-        - No bullet points or lists inside JSON string values
-    """
+        - No markdown bullet markers (- or *) inside JSON string values
+        - Numbered list fields (key_developments, critical_risks, gaps, key_findings,
+          recommendations) MUST put each numbered item on its own line using \\n
+        """
 
     # ================================================================== #
     #  QUESTION-level prompt                                              #
@@ -205,13 +207,21 @@ class AHIPromptTemplates:
             "opacity_risk": "<80-130 words. Cause of any data gap (suppression, conflict, institutional incapacity, or routine non-publication). Empty string if none.>",
             "red_flag": "<80-130 words. Serious concerns (single-source claims, elite-only data, suppressed reporting). Empty string if none.>",
             "data_sources_count": <integer 1-5>,
-            "source_type": "<Official Government|International Organization|Academic|Civil Society|Geospatial|Media>",
-            "source_name": "<Organization or publication name>",
+            "source_type": "<Primary Government|International Organization|Academic|NGO|Media>",
+            "source_name": "<Organization or author name>",
             "source_url": "<URL or 'Not available'>",
-            "source_data_year": <year as integer>,
-            "source_trust_level": <1-7>,
-            "source_data_extract": "<The specific data point or finding, 1-2 sentences.>"
+            "source_data_year": <year as integer — actual year the data represents>,
+            "reporting_lag": <integer — current target year minus source_data_year; 0 if current>,
+            "data_quality_flag": "<Current|1-Year Lag|2-Year Lag|3-Year Lag|No Data>",
+            "source_trust_level": <1-7 — Primary Government 1-2, International Organization 3, Academic 4, NGO 5, Media/Grey 6-7>,
+            "source_data_extract": "<The specific data point or finding, 1-2 sentences. If lag > 0, begin with the lag note.>"
         }}
+
+        DATA SOURCING (apply to source fields above):
+        - Prefer newest reporting year within a 5-year lookback (current year, then -1 … -4).
+        - Within a year, prefer Primary Government > International Organization > Academic/NGO > Media.
+        - reporting_lag = current target year - source_data_year; set data_quality_flag accordingly.
+        - Media / grey literature is fallback only when higher-trust sources are unavailable.
 
         {AHIPromptTemplates._OUTPUT_STYLE}
         {AHIPromptTemplates._JSON_RULES}
@@ -505,27 +515,43 @@ class AHIPromptTemplates:
         {{
             "immediateSituation": {{
                 "summary": "<150-220 words. Concise executive memo providing immediate situational awareness. Must read like a daily/weekly decision brief — highlight what is happening now, what is changing, and what requires immediate attention. Not a generic summary.>",
-                "key_developments": "<Single string. Exactly 3 items. Format strictly: 1) <item> || 2) <item> || 3) <item>. Headline-style. Major recent events or changes surfaced by the data.>",
-                "critical_risks": "<Single string. Exactly 3 items. Format strictly: 1) <item> || 2) <item> || 3) <item>. Focus on urgency, escalation potential, and impact.>",
-                "gaps": "<Single string. Exactly 3 items. Format strictly: 1) <item> || 2) <item> || 3) <item>. Missing capacity, weak response mechanisms, or data blind spots.>"
+                "key_developments": "<Single string. Exactly 3 items. EACH item on its own line. Format strictly with real newlines: 1) <item>\\n2) <item>\\n3) <item>. Headline-style. Major recent events or changes.>",
+                "critical_risks": "<Single string. Exactly 3 items. EACH item on its own line. Format strictly: 1) <item>\\n2) <item>\\n3) <item>. Focus on urgency, escalation potential, and impact.>",
+                "gaps": "<Single string. Exactly 3 items. EACH item on its own line. Format strictly: 1) <item>\\n2) <item>\\n3) <item>. Missing capacity, weak response mechanisms, or data blind spots.>"
             }},
-            "key_findings": "<Single string. 5-7 items. Format strictly: 1) <pillar>: <concise finding> || 2) <pillar>: <concise finding> || ... Present the most significant assessment results, highlighting the major pillars in a concise, easy-to-read bullet format. Each item must name the pillar and state the key insight.>",
-            "recommendations": "<Single string. 5-7 items. Format strictly: 1) <recommendation> || 2) <recommendation> || ... Intelligent, practical, evidence-based actions tailored to the assessment results. Draw on international best practices, successful case studies, relevant standards (e.g. WHO, AU), and comparable experiences from other countries or organizations. Each item: 2-3 sentences with clear rationale.>",
-            "executive_summary": "<550-700 words, ASCII only. Flowing prose. No headers, no bullet points. Four sections in strict order: Country Overview, System Diagnosis, Strategic Strengths, Structural Risks.>"
+            "key_findings": "<Single string. 5-7 items. EACH item on its own line. Format strictly: 1) <pillar>: <concise finding>\\n2) <pillar>: <concise finding>\\n3) <pillar>: <concise finding> ... Present the most significant assessment results. Each item must name the pillar and state the key insight.>",
+            "recommendations": "<Single string. 5-7 items. EACH item on its own line. Format strictly: 1) <recommendation>\\n2) <recommendation>\\n3) <recommendation> ... Intelligent, practical, evidence-based actions. Each item: 2-3 sentences with clear rationale.>",
+            "executive_summary": "<550-700 words, ASCII only. Flowing prose. No headers, no bullet points. Four sections in strict order: Country Overview, System Diagnosis, Strategic Strengths, Structural Risks. Separate each section with a blank line (\\n\\n).>"
         }}
 
         -----------------------------------------
-        IMMEDIATE SITUATION - FIELD RULES (CRITICAL)
+        LINE-BREAK RULES FOR LIST FIELDS (CRITICAL — READABILITY)
         -----------------------------------------
-        - key_developments, critical_risks, and gaps MUST be single string values — NOT arrays.
-        - Each MUST contain exactly 3 numbered items.
-        - key_findings MUST be a single string with 5-7 numbered items (NOT an array).
-        - recommendations MUST be a single string with 5-7 numbered items (NOT an array).
-        - Use ONLY "||" as the separator. No bullet points, no newlines, no extra separators.
-        - Each immediateSituation item: 1-2 sentences maximum.
+        These fields are SINGLE strings (NOT arrays), but MUST be multi-line so each
+        numbered point starts on a NEW LINE when displayed (same readability idea as
+        Executive Summary section breaks — but one line break per point, not section headers):
+
+        - key_developments
+        - critical_risks
+        - gaps
+        - key_findings
+        - recommendations
+
+        REQUIRED format example (JSON-escaped newlines):
+        "1) First point here.\\n2) Second point here.\\n3) Third point here."
+
+        HARD RULES:
+        - Put a newline (\\n) BEFORE every item after the first (before 2), 3), 4), …).
+        - Do NOT use "||" as a separator — ever.
+        - Do NOT put all points on one continuous line.
+        - Do NOT use markdown bullets (- or *).
+        - key_developments / critical_risks / gaps: exactly 3 numbered items.
+        - key_findings / recommendations: 5-7 numbered items.
+        - Each immediateSituation list item: 1-2 sentences maximum.
         - Each key_findings item: 1-2 sentences naming the pillar and the insight.
         - Each recommendations item: 2-3 sentences with actionable guidance and evidence basis.
-        - No newline characters anywhere in any string field.
+        - summary field: no forced line breaks between list points (prose only).
+        - executive_summary: flowing prose; separate the four sections with \\n\\n only.
 
         -----------------------------------------
         KEY FINDINGS RULES
@@ -533,6 +559,7 @@ class AHIPromptTemplates:
         - Cover the most significant results across major assessment pillars.
         - Prioritise findings that matter most for decision-makers.
         - Be specific and evidence-grounded — avoid generic statements.
+        - Each numbered finding MUST start on a new line (\\n between items). Never use "||".
 
         -----------------------------------------
         RECOMMENDATIONS RULES
@@ -541,6 +568,7 @@ class AHIPromptTemplates:
         - Reference international best practices, standards, or comparable country experiences where relevant.
         - Make each recommendation actionable, practical, and prioritised by impact.
         - Do NOT repeat key_findings — recommendations must propose forward-looking actions.
+        - Each numbered recommendation MUST start on a new line (\\n between items). Never use "||".
 
         -----------------------------------------
         EXECUTIVE SUMMARY FRAMEWORK (STRICT)
@@ -626,26 +654,35 @@ class AHIPromptTemplates:
         {{
             "immediateSituation": {{
                 "summary": "<150-220 words. Executive memo focused entirely on the CURRENT situation and recent changes. Must read like a daily/weekly decision brief — what is happening, what has shifted, what requires attention. Not a generic background summary.>",
-                "key_developments": "<Single string. Exactly 3 items. Format strictly: 1) <item> || 2) <item> || 3) <item>. Headline-style. Specific, recent events or changes.>",
-                "critical_risks": "<Single string. Exactly 3 items. Format strictly: 1) <item> || 2) <item> || 3) <item>. Focus on escalation, instability, or emerging threats. Prioritise urgency.>",
-                "gaps": "<Single string. Exactly 3 items. Format strictly: 1) <item> || 2) <item> || 3) <item>. Missing capacity, weak response mechanisms, or structural blind spots.>"
+                "key_developments": "<Single string. Exactly 3 items. EACH item on its own line. Format strictly: 1) <item>\\n2) <item>\\n3) <item>. Headline-style. Specific, recent events or changes.>",
+                "critical_risks": "<Single string. Exactly 3 items. EACH item on its own line. Format strictly: 1) <item>\\n2) <item>\\n3) <item>. Focus on escalation, instability, or emerging threats. Prioritise urgency.>",
+                "gaps": "<Single string. Exactly 3 items. EACH item on its own line. Format strictly: 1) <item>\\n2) <item>\\n3) <item>. Missing capacity, weak response mechanisms, or structural blind spots.>"
             }},
-            "key_findings": "<Single string. 5-7 items. Format strictly: 1) <pillar>: <concise finding> || 2) <pillar>: <concise finding> || ... Present the most significant assessment results, highlighting the major pillars in a concise, easy-to-read bullet format.>",
-            "recommendations": "<Single string. 5-7 items. Format strictly: 1) <recommendation> || 2) <recommendation> || ... Intelligent, practical, evidence-based actions tailored to the assessment results. Draw on international best practices, successful case studies, relevant standards, and comparable country experiences. Each item: 2-3 sentences with clear rationale.>"
+            "key_findings": "<Single string. 5-7 items. EACH item on its own line. Format strictly: 1) <pillar>: <concise finding>\\n2) <pillar>: <concise finding>\\n3) <pillar>: <concise finding> ...>",
+            "recommendations": "<Single string. 5-7 items. EACH item on its own line. Format strictly: 1) <recommendation>\\n2) <recommendation>\\n3) <recommendation> ... Each item: 2-3 sentences with clear rationale.>"
         }}
 
         -----------------------------------------
-        FIELD RULES (CRITICAL)
+        LINE-BREAK RULES FOR LIST FIELDS (CRITICAL — READABILITY)
         -----------------------------------------
-        - key_developments, critical_risks, and gaps MUST be single string values — NOT arrays.
-        - Each MUST contain exactly 3 numbered items.
-        - key_findings MUST be a single string with 5-7 numbered items (NOT an array).
-        - recommendations MUST be a single string with 5-7 numbered items (NOT an array).
-        - Use ONLY "||" as the separator. No bullet points, no newlines, no extra separators.
-        - Each immediateSituation item: 1-2 sentences maximum.
+        These fields are SINGLE strings (NOT arrays), but MUST be multi-line so each
+        numbered point starts on a NEW LINE when displayed:
+
+        - key_developments, critical_risks, gaps: exactly 3 items
+        - key_findings, recommendations: 5-7 items
+
+        REQUIRED format example:
+        "1) First point here.\\n2) Second point here.\\n3) Third point here."
+
+        HARD RULES:
+        - Put a newline (\\n) BEFORE every item after the first.
+        - Do NOT use "||" — ever.
+        - Do NOT put all points on one continuous line.
+        - Do NOT use markdown bullets (- or *).
+        - Each immediateSituation list item: 1-2 sentences maximum.
         - Each key_findings item: 1-2 sentences naming the pillar and the insight.
         - Each recommendations item: 2-3 sentences with actionable guidance and evidence basis.
-        - No newline characters anywhere in any string field.
+        - summary field remains flowing prose (no numbered list required).
 
         -----------------------------------------
         STYLE RULES

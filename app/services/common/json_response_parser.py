@@ -341,11 +341,11 @@ def build_immediateSituation_record(ai: dict) -> Dict[str, Any]:
 
     return {
         "immediateSituationSummary": immediate.get("summary", ""),
-        "key_developments": immediate.get("key_developments", ""),
-        "critical_risks": immediate.get("critical_risks", ""),
-        "gaps": immediate.get("gaps", ""),
-        "key_findings": ai.get("key_findings", ""),
-        "recommendations": ai.get("recommendations", ""),
+        "key_developments": normalize_numbered_list_text(immediate.get("key_developments", "")),
+        "critical_risks": normalize_numbered_list_text(immediate.get("critical_risks", "")),
+        "gaps": normalize_numbered_list_text(immediate.get("gaps", "")),
+        "key_findings": normalize_numbered_list_text(ai.get("key_findings", "")),
+        "recommendations": normalize_numbered_list_text(ai.get("recommendations", "")),
         "executive_summary": ai.get("executive_summary", "")
     }
 
@@ -357,6 +357,28 @@ def _require_fields(data: Dict, fields: list[str]) -> None:
     for field in fields:
         if field not in data:
             raise ValueError(f"Missing required field in LLM response: '{field}'")
+
+
+def normalize_numbered_list_text(value: Any) -> str:
+    """
+    Ensure each numbered point starts on its own line for UI/PDF readability.
+
+    Converts legacy "||" separators and mid-line "2) / 3)" markers into newlines.
+    """
+    if value is None:
+        return ""
+    text = value if isinstance(value, str) else str(value)
+    text = text.replace("\r\n", "\n").replace("\r", "\n").strip()
+    if not text:
+        return ""
+
+    # Legacy pipe separator → newline
+    text = re.sub(r"\s*\|\|\s*", "\n", text)
+    # Numbered item mid-line (e.g. "...end. 2) Next") → newline before N)
+    text = re.sub(r"\s+(?=\d+\))", "\n", text)
+    # Collapse accidental blank lines between points
+    text = re.sub(r"\n{2,}", "\n", text)
+    return text.strip()
 
 
 def _validate_ai_score(data: Dict) -> None:

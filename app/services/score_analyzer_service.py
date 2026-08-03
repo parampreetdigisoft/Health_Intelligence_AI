@@ -13,6 +13,7 @@ from typing import Any, Optional
 logger = logging.getLogger(__name__)
 from app.services.core.repository import DatabaseRepository
 from app.services.common.ahi_ai_research_service import AHIResearchService
+from app.services.common.json_response_parser import normalize_numbered_list_text
 from app.services.rag_query_service import rag_query_service
 #  To DB after every N records (currently 1 = immediate upsert).
 #  Increase for bulk jobs to reduce round-trips.
@@ -560,11 +561,11 @@ class ScoreAnalyzerService:
         return {
             "CountryID": countryId,
             "immediateSituationSummary": ai.get("immediateSituationSummary", "Unknown"),
-            "key_developments": ai.get("key_developments", "Unknown"),
-            "critical_risks": ai.get("critical_risks"),
-            "gaps": ai.get("gaps"),
-            "key_findings": ai.get("key_findings"),
-            "recommendations": ai.get("recommendations"),
+            "key_developments": normalize_numbered_list_text(ai.get("key_developments", "Unknown")),
+            "critical_risks": normalize_numbered_list_text(ai.get("critical_risks")),
+            "gaps": normalize_numbered_list_text(ai.get("gaps")),
+            "key_findings": normalize_numbered_list_text(ai.get("key_findings")),
+            "recommendations": normalize_numbered_list_text(ai.get("recommendations")),
             "executive_summary": summary if isinstance(summary, str) and len(summary) > 50 else ""
         }
 
