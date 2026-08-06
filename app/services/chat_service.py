@@ -14,8 +14,14 @@ from app.services.rag_query_service import rag_query_service
 from app.services.common.llm_base_service import LLMBaseService
 from app.services.common import json_response_parser as jrp
 from app.services.common.pillar_prompts import AHIPPillarPrompts
+from app.services.common.kpi_summary_prompt import (
+    KPI_SUMMARY_SYSTEM_PROMPT,
+    KPI_SUMMARY_USER_TEMPLATE,
+    format_interpretation_bands,
+)
 from app.view_models.EmergingTrendsResult import EmergingTrendsResult
 from app.view_models.PillarLiveSignalsResult import PillarLiveSignalsResult
+from app.view_models.KpiSummaryRequest import KpiSummaryRequest, KpiSummaryResult
 from app.services.common.url_verifier import ensure_live_source_url
 logger = logging.getLogger(__name__)
 CHROMA_PATH = "./chroma_store"
@@ -564,6 +570,75 @@ class ChatService:
 
         data["pillars"] = verified
         return data
+
+    async def summarize_kpi_performance(
+        self,
+        request: KpiSummaryRequest,
+    ) -> Dict[str, Any]:
+        """
+        Generate a user-facing KPI performance summary from provided details only.
+        Returns { success, message, result } where result matches KpiSummaryResult.
+        """
+        try:
+            bands = [
+                band.model_dump() if hasattr(band, "model_dump") else dict(band)
+                for band in (request.interpretationBands or [])
+            ]
+
+            def _score_label(value: Optional[float]) -> str:
+                if value is None:
+                    return "Not provided for this user role"
+                return f"{value:.2f}"
+
+            raw = await self._llm_svc.invoke_chain(
+                system_prompt=KPI_SUMMARY_SYSTEM_PROMPT,
+                user_template=KPI_SUMMARY_USER_TEMPLATE,
+                variables={
+                    "country_name": request.countryName or "Unknown country",
+                    "layer_name": request.layerName,
+                    "layer_code": request.layerCode,
+                    "purpose": (request.purpose or "").strip() or "Not provided",
+                    "category_details": (request.categoryDetails or "").strip()
+                    or "Not provided",
+                    "manual_score": _score_label(request.manualScore),
+                    "manual_condition": request.manualCondition or "Not available",
+                    "ai_score": _score_label(request.aiScore),
+                    "ai_condition": request.aiCondition or "Not available",
+                    "interpretation_bands": format_interpretation_bands(bands),
+                },
+                label=f"kpi-summary|{request.layerCode}",
+            )
+
+            parsed = json.loads(jrp.clean_json_response(raw))
+            if not isinstance(parsed, dict) or not parsed.get("summary"):
+                raise ValueError("LLM response missing required 'summary' field")
+
+            takeaways = parsed.get("keyTakeaways") or parsed.get("key_takeaways") or []
+            if not isinstance(takeaways, list):
+                takeaways = [str(takeaways)]
+
+            result = KpiSummaryResult(
+                summary=str(parsed.get("summary", "")).strip(),
+                scoreInterpretation=(
+                    parsed.get("scoreInterpretation")
+                    or parsed.get("score_interpretation")
+                ),
+                keyTakeaways=[str(t).strip() for t in takeaways if str(t).strip()],
+                outlook=parsed.get("outlook"),
+            )
+
+            return {
+                "success": True,
+                "message": "KPI summary generated successfully",
+                "result": result.model_dump(),
+            }
+        except Exception as exc:
+            logger.error("summarize_kpi_performance failed: %s", exc, exc_info=True)
+            return {
+                "success": False,
+                "message": "Failed to generate KPI summary. Please try again later.",
+                "result": None,
+            }
 
 
 chat_service = ChatService()

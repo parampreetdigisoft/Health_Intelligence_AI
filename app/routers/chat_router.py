@@ -10,6 +10,7 @@ from app.view_models.ChatRequest import ChatCountryExecutiveSlidesRequest, ChatC
 from app.view_models.AnalysisRequest import ChatResponse
 from app.view_models.EmergingTrendsResult import ChatEmergingTrendsResponse
 from app.view_models.PillarLiveSignalsResult import ChatPillarLiveSignalsResponse
+from app.view_models.KpiSummaryRequest import KpiSummaryRequest, KpiSummaryResponse, KpiSummaryResult
 logger = logging.getLogger(__name__)
 from app.services.chat_service import chat_service
 
@@ -111,6 +112,46 @@ async def ask(request: ChatCrossComparisionRequest):
         logger.error(f"Error in chat API: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
     
+
+@router.post(
+    "/kpi-summary",
+    response_model=KpiSummaryResponse,
+    summary="Summarize KPI performance for end users",
+)
+async def summarize_kpi_performance(request: KpiSummaryRequest):
+    """
+    Sync KPI summarization endpoint.
+    Accepts KPI purpose, scores (role-filtered by C#), and interpretation bands.
+    Returns structured JSON summary scoped only to the provided KPI.
+    """
+    try:
+        if not request.layerName or not request.layerCode:
+            raise HTTPException(
+                status_code=400,
+                detail="layerName and layerCode are required",
+            )
+
+        response = await chat_service.summarize_kpi_performance(request)
+
+        if not response.get("success"):
+            return KpiSummaryResponse(
+                success=False,
+                message=response.get("message") or "Failed to generate KPI summary",
+                result=None,
+            )
+
+        result_data = response.get("result") or {}
+        return KpiSummaryResponse(
+            success=True,
+            message=response.get("message") or "KPI summary generated successfully",
+            result=KpiSummaryResult(**result_data) if result_data else None,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in KPI summary API: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.post("/executive-slides",response_model=ChatCountryExecutiveSlidesResponse)
 async def ask_Country_executive_slides(request: ChatCountryExecutiveSlidesRequest):
