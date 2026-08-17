@@ -312,6 +312,17 @@ class DatabaseRepository:
                 a.PerceptionEvidence,
                 a.CrossPillarPatterns,
                 a.StrategicRecommendation,
+                a.TemporalScope,
+				a.DistortionScreening,
+				a.PoliticalShock,
+				a.EconomicShock,
+				a.NarrativeShock,
+				a.RelationalIntegrity,
+				a.InstitutionalCapacity,
+				a.EquityAssessment,
+				a.ConflictRiskOutlook,
+				a.PrimarySource,
+				a.DataTransparencyNote,
                 p.PillarName
             FROM AICountryScores a
             JOIN Countries c 

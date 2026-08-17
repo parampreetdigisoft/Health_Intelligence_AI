@@ -112,6 +112,7 @@ class LLMBaseService:
         variables: Dict[str, Any],
         *,
         label: str = "chain",          # used only in log messages
+        max_tokens: Optional[int] = None,
     ) -> str:
         """
         Build a two-message ChatPromptTemplate, pipe through the LLM, and
@@ -123,6 +124,8 @@ class LLMBaseService:
                             Use {variable_name} placeholders.
             variables:      Dict of template variables.
             label:          Human-readable label for log messages.
+            max_tokens:     Optional per-call output cap. Country JSON uses a
+                            higher value so the object can close fully.
 
         Returns:
             Raw LLM response string.
@@ -138,7 +141,8 @@ class LLMBaseService:
                 ("user", user_template),
             ]
         )
-        chain = prompt | self._llm | StrOutputParser()
+        llm = self._llm.bind(max_tokens=max_tokens) if max_tokens else self._llm
+        chain = prompt | llm | StrOutputParser()
 
         last_exc: Optional[Exception] = None
         for attempt in range(self.max_retries):

@@ -184,6 +184,7 @@ class AHIResearchService:
                     "year": year,
                 },
                 label=label,
+                max_tokens=8192,
             )
 
             analysis = json.loads(jrp.clean_json_response(raw))
@@ -203,7 +204,12 @@ class AHIResearchService:
         documentContext: Optional[str],
         year: int = None,
     ) -> Dict[str, Any]:
-        """Produce a cross-pillar country-level Healthassessment."""
+        """
+        Produce a cross-pillar country-level Healthassessment.
+        ai_country_context all info of country coontext        
+        local document context not public available data
+
+        """
         try:
             # Fix: Proper length check
             if not documentContext or len(documentContext) < 100:
@@ -233,6 +239,7 @@ class AHIResearchService:
                     "year": year,
                 },
                 label=label,
+                max_tokens=8192,
             )
 
             analysis = json.loads(jrp.clean_json_response(raw))
