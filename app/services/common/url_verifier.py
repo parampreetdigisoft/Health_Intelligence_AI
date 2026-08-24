@@ -6,10 +6,69 @@ from __future__ import annotations
 
 import logging
 from urllib.parse import quote_plus, urlparse
-
+from typing import Optional
 import httpx
 
 logger = logging.getLogger(__name__)
+_SEARCH_HOSTS = (
+    "google.",
+    "bing.com",
+    "duckduckgo.com",
+    "search.yahoo.",
+    "news.google.",
+)
+
+_GENERIC_PATHS = {"", "/", "/world", "/news", "/en", "/latest", "/home", "/index"}
+
+
+def is_search_results_url(url: str) -> bool:
+    try:
+        parsed = urlparse(url)
+    except Exception:
+        return False
+    host = (parsed.netloc or "").lower()
+    path = (parsed.path or "").lower()
+    query = (parsed.query or "").lower()
+    if any(h in host for h in _SEARCH_HOSTS):
+        return True
+    if "/search" in path or "q=" in query:
+        return True
+    return False
+
+
+def is_homepage_url(url: str) -> bool:
+    try:
+        parsed = urlparse(url)
+    except Exception:
+        return False
+    path = (parsed.path or "").rstrip("/") or "/"
+    if path in _GENERIC_PATHS or path.lower() in _GENERIC_PATHS:
+        return True
+    segments = [s for s in path.split("/") if s]
+    return len(segments) < 2
+
+
+def is_valid_source_url(url: Optional[str]) -> bool:
+    """True only for an absolute http(s) article/report URL — not search pages."""
+    if not url or not isinstance(url, str):
+        return False
+    value = url.strip()
+    if not value or " " in value or "..." in value:
+        return False
+    if not value.startswith(("http://", "https://")):
+        return False
+    try:
+        parsed = urlparse(value)
+    except Exception:
+        return False
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        return False
+    if is_search_results_url(value):
+        return False
+    if is_homepage_url(value):
+        return False
+    return True
+
 
 _DEFAULT_HEADERS = {
     "User-Agent": (

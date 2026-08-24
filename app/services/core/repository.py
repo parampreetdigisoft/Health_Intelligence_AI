@@ -324,16 +324,15 @@ class DatabaseRepository:
 				a.PrimarySource,
 				a.DataTransparencyNote,
                 p.PillarName
-            FROM AICountryScores a
-            JOIN Countries c 
-                ON a.CountryID = c.CountryID 
-                AND c.IsDeleted = 0
+            FROM Countries c
+            left JOIN AICountryScores a 
+                ON a.CountryID = c.CountryID  AND a.Year = ?
             left join pillars p on p.PillarID=?
-            WHERE a.CountryID = ?
-            AND a.Year = ?
+            WHERE c.IsDeleted = 0 and c.CountryID = ?
+            
         """
 
-        params = (pillar_id,country_id, year)
+        params = ( pillar_id, year, country_id)
 
         result = await self.engine.fetch_dicts_async(query, params)
 
